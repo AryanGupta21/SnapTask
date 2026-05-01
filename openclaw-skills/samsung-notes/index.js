@@ -9,7 +9,7 @@ module.exports = {
     }
 
     return {
-      action: 'create_note',
+      type: 'create_note',
       params: {
         title,
         body: body ?? '',

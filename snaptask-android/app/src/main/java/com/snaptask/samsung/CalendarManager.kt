@@ -15,7 +15,9 @@ class CalendarManager(private val context: Context) {
         val reminderMinutes = (params["reminderMinutes"] as? Double)?.toInt() ?: 60
 
         val startMs = Instant.parse(dateTime).toEpochMilli()
-        val endMs = startMs + (60 * 60 * 1000) // default 1-hour duration
+        val endMs = (params["endDateTime"] as? String)
+            ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+            ?: (startMs + 60 * 60 * 1000)
 
         val calendarId = getDefaultCalendarId() ?: return
 
@@ -29,29 +31,38 @@ class CalendarManager(private val context: Context) {
         }
 
         val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            ?: return
 
-        eventUri?.let { uri ->
-            val reminderId = uri.lastPathSegment?.toLongOrNull() ?: return
-            val reminderValues = ContentValues().apply {
-                put(CalendarContract.Reminders.EVENT_ID, reminderId)
-                put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
-            }
-            context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+        val eventId = eventUri.lastPathSegment?.toLongOrNull() ?: return
+        val reminderValues = ContentValues().apply {
+            put(CalendarContract.Reminders.EVENT_ID, eventId)
+            put(CalendarContract.Reminders.MINUTES, reminderMinutes)
+            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
         }
+        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
     }
 
     private fun getDefaultCalendarId(): Long? {
-        val projection = arrayOf(CalendarContract.Calendars._ID, CalendarContract.Calendars.IS_PRIMARY)
-        val cursor = context.contentResolver.query(
+        val projection = arrayOf(CalendarContract.Calendars._ID)
+
+        // Prefer the primary calendar (IS_PRIMARY = 1)
+        context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
             "${CalendarContract.Calendars.IS_PRIMARY} = 1",
             null,
             null
-        )
-        return cursor?.use {
-            if (it.moveToFirst()) it.getLong(0) else null
-        }
+        )?.use { if (it.moveToFirst()) return it.getLong(0) }
+
+        // Fall back to any visible calendar
+        context.contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            projection,
+            "${CalendarContract.Calendars.VISIBLE} = 1",
+            null,
+            null
+        )?.use { if (it.moveToFirst()) return it.getLong(0) }
+
+        return null
     }
 }

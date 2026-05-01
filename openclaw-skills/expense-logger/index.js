@@ -9,7 +9,7 @@ module.exports = {
     }
 
     return {
-      action: 'log_expense',
+      type: 'log_expense',
       params: {
         merchant,
         amount: parseFloat(amount),
