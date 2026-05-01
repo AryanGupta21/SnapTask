@@ -33,10 +33,13 @@ android {
     }
 }
 
+configurations.all {
+    exclude group: 'com.google.mlkit', module: 'entity-extraction'
+}
+
 dependencies {
     // ML Kit
     implementation 'com.google.mlkit:text-recognition:16.0.0'
-    implementation 'com.google.mlkit:entity-extraction:16.0.0'
 
     // Networking
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
