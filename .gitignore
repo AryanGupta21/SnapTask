@@ -1,0 +1,25 @@
+# Android
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+*.apk
+*.aab
+*.keystore
+app/libs/samsung-notes-sdk.aar
+
+# Node / OpenClaw
+node_modules/
+npm-debug.log
+.env
+
+# macOS
+.DS_Store
+*.swp
+
+# Ollama models (large binaries)
+*.gguf
+*.bin
