@@ -22,8 +22,8 @@ class OpenClawClient(private val api: OpenClawApi) {
         api.process(SnapTaskRequest(rawText = rawText, entities = entities))
 
     companion object {
-        // Replace with your MacBook's local IP: ifconfig | grep inet
-        private const val BASE_URL = "http://192.168.1.100:3000/"
+        // Emulator: use 10.0.2.2 (host machine alias). Real device: use MacBook's LAN IP.
+        private const val BASE_URL = "http://10.0.2.2:3000/"
 
         fun create(): OpenClawClient {
             val logging = HttpLoggingInterceptor().apply {
