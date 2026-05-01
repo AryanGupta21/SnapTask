@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SnapTask</string>
+    <string name="loading">Reading image…</string>
+    <string name="btn_execute">Execute</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="error_ocr_failed">Could not read text from image</string>
+    <string name="error_gateway_unreachable">OpenClaw gateway unreachable. Is it running on your MacBook?</string>
+</resources>
