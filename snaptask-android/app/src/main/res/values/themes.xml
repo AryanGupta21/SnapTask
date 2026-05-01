@@ -16,7 +16,5 @@
     -->
     <style name="Theme.SnapTask.BottomSheet" parent="Theme.SnapTask">
         <item name="android:windowIsFloating">false</item>
-        <item name="android:backgroundDimEnabled">true</item>
-        <item name="android:windowDimAmount">0.5</item>
     </style>
 </resources>
