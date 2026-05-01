@@ -75,7 +75,7 @@ app.post('/process', async (req, res) => {
   let llmResult;
   try {
     const result = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3-flash-preview',
       contents: buildPrompt(rawText, entities),
       config: { responseMimeType: 'application/json' },
     });
