@@ -84,14 +84,24 @@ class CalendarManager(private val context: Context) {
     }
 
     private fun getDefaultCalendarId(): Long? {
-        val projection = arrayOf(CalendarContract.Calendars._ID, CalendarContract.Calendars.ACCOUNT_NAME)
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+        )
 
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI, projection,
             "${CalendarContract.Calendars.IS_PRIMARY} = 1", null, null
         )?.use {
             Log.d(TAG, "Primary calendar query: ${it.count} rows")
-            if (it.moveToFirst()) return it.getLong(0)
+            if (it.moveToFirst()) {
+                val id = it.getLong(0)
+                val account = it.getString(1)
+                val name = it.getString(2)
+                Log.d(TAG, "Selected calendar: id=$id account=$account name=$name")
+                return id
+            }
         }
 
         context.contentResolver.query(
@@ -99,7 +109,11 @@ class CalendarManager(private val context: Context) {
             "${CalendarContract.Calendars.VISIBLE} = 1", null, null
         )?.use {
             Log.d(TAG, "Visible calendar query: ${it.count} rows")
-            if (it.moveToFirst()) return it.getLong(0)
+            while (it.moveToNext()) {
+                Log.d(TAG, "  Calendar: id=${it.getLong(0)} account=${it.getString(1)} name=${it.getString(2)}")
+            }
+            it.moveToFirst()
+            if (!it.isAfterLast) return it.getLong(0)
         }
 
         return null
