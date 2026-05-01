@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.TimeZone
 
 class CalendarManager(private val context: Context) {
@@ -14,7 +16,8 @@ class CalendarManager(private val context: Context) {
         val location = params["location"] as? String
         val reminderMinutes = (params["reminderMinutes"] as? Double)?.toInt() ?: 60
 
-        val startMs = Instant.parse(dateTime).toEpochMilli()
+        val startMs = runCatching { Instant.parse(dateTime).toEpochMilli() }
+            .getOrElse { LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }
         val endMs = (params["endDateTime"] as? String)
             ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
             ?: (startMs + 60 * 60 * 1000)
