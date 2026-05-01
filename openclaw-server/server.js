@@ -1,16 +1,26 @@
+require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 app.use(express.json());
 
 const SKILLS_DIR = path.join(__dirname, '..', 'openclaw-skills');
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
-const MODEL = 'llama3.2';
 const PORT = 3000;
 
-// Load all skills at startup
+if (!process.env.GEMINI_API_KEY) {
+  console.error('ERROR: GEMINI_API_KEY is not set. Create a .env file — see .env.example.');
+  process.exit(1);
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: 'gemini-1.5-flash',
+  generationConfig: { responseMimeType: 'application/json' },
+});
+
 function loadSkills() {
   const skills = {};
   for (const name of fs.readdirSync(SKILLS_DIR)) {
@@ -46,33 +56,16 @@ ${rawText}
 """
 ${entities && entities.length > 0 ? `\nExtracted entities: ${JSON.stringify(entities)}` : ''}
 
-Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
+Respond with valid JSON in this exact format:
 {
   "intent": "<short description of what this is>",
   "summary": "<one sentence summary of the planned action>",
   "skill": "<skill name or null if no skill matches>",
-  "params": { <skill parameters as key-value pairs> },
-  "confidence": <0.0 to 1.0>
+  "params": {},
+  "confidence": 0.0
 }
 
 If no skill matches, set skill to null and params to {}.`;
-}
-
-async function callOllama(prompt) {
-  const res = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, prompt, stream: false }),
-  });
-  if (!res.ok) throw new Error(`Ollama error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return data.response;
-}
-
-function parseJson(text) {
-  // Strip markdown code fences if Ollama wrapped the response
-  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  return JSON.parse(stripped);
 }
 
 app.post('/process', async (req, res) => {
@@ -85,12 +78,12 @@ app.post('/process', async (req, res) => {
 
   let llmResult;
   try {
-    const prompt = buildPrompt(rawText, entities);
-    const raw = await callOllama(prompt);
-    console.log('[Ollama raw]', raw);
-    llmResult = parseJson(raw);
+    const result = await model.generateContent(buildPrompt(rawText, entities));
+    const text = result.response.text();
+    console.log('[Gemini raw]', text);
+    llmResult = JSON.parse(text);
   } catch (err) {
-    console.error('[Ollama error]', err.message);
+    console.error('[Gemini error]', err.message);
     return res.status(502).json({ error: `LLM error: ${err.message}` });
   }
 
@@ -103,7 +96,6 @@ app.post('/process', async (req, res) => {
       actions = [action];
     } catch (err) {
       console.error(`[Skill error: ${skillName}]`, err.message);
-      // Return the response without actions rather than failing entirely
     }
   }
 
@@ -118,9 +110,9 @@ app.post('/process', async (req, res) => {
   res.json(response);
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills) }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: 'gemini-1.5-flash' }));
 
 app.listen(PORT, () => {
   console.log(`OpenClaw Gateway listening on http://localhost:${PORT}`);
-  console.log(`Using Ollama model: ${MODEL}`);
+  console.log('Using Gemini 1.5 Flash');
 });
