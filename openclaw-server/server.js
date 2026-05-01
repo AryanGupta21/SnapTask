@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 app.use(express.json());
@@ -15,11 +15,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',
-  generationConfig: { responseMimeType: 'application/json' },
-});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 function loadSkills() {
   const skills = {};
@@ -78,10 +74,13 @@ app.post('/process', async (req, res) => {
 
   let llmResult;
   try {
-    const result = await model.generateContent(buildPrompt(rawText, entities));
-    const text = result.response.text();
-    console.log('[Gemini raw]', text);
-    llmResult = JSON.parse(text);
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: buildPrompt(rawText, entities),
+      config: { responseMimeType: 'application/json' },
+    });
+    console.log('[Gemini raw]', result.text);
+    llmResult = JSON.parse(result.text);
   } catch (err) {
     console.error('[Gemini error]', err.message);
     return res.status(502).json({ error: `LLM error: ${err.message}` });
@@ -110,9 +109,9 @@ app.post('/process', async (req, res) => {
   res.json(response);
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: 'gemini-1.5-flash' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: 'gemini-2.0-flash' }));
 
 app.listen(PORT, () => {
   console.log(`OpenClaw Gateway listening on http://localhost:${PORT}`);
-  console.log('Using Gemini 1.5 Flash');
+  console.log('Using Gemini 2.0 Flash');
 });
