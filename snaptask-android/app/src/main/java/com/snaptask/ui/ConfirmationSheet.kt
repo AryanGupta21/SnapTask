@@ -60,7 +60,7 @@ fun ConfirmationSheet(
                         style = MaterialTheme.typography.titleMedium
                     )
                     if (s.response.actions.isNotEmpty()) {
-                        HorizontalDivider()
+                        Divider()
                         s.response.actions.forEach { action ->
                             ActionRow(action)
                         }
