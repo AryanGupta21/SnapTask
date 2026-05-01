@@ -9,7 +9,7 @@ module.exports = {
     }
 
     return {
-      action: 'create_contact',
+      type: 'create_contact',
       params: {
         name,
         phone: phone ?? null,

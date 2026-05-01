@@ -9,6 +9,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import java.util.concurrent.TimeUnit
 
 interface OpenClawApi {
     @POST("process")
@@ -30,6 +31,9 @@ class OpenClawClient(private val api: OpenClawApi) {
             }
             val http = OkHttpClient.Builder()
                 .addInterceptor(logging)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
                 .build()
 
             val retrofit = Retrofit.Builder()

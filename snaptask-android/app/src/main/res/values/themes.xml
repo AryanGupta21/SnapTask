@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Base theme: transparent window so the Compose SnapTaskTheme controls all visuals.
+        NoActionBar because ShareReceiverActivity hosts a bottom sheet, not a full-screen UI.
+    -->
+    <style name="Theme.SnapTask" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
+
+    <!--
+        Bottom-sheet overlay theme: dims the caller (Camera / Gallery) behind the sheet.
+        windowIsFloating=false lets the Compose layout fill the screen so ModalBottomSheet
+        positions itself correctly at the bottom.
+    -->
+    <style name="Theme.SnapTask.BottomSheet" parent="Theme.SnapTask">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowDimAmount">0.5</item>
+    </style>
+</resources>

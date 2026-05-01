@@ -9,7 +9,7 @@ module.exports = {
     }
 
     return {
-      action: 'create_calendar_event',
+      type: 'create_calendar_event',
       params: {
         title,
         dateTime: `${date}T${time}:00`,

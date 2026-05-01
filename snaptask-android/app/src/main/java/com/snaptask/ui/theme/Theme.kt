@@ -1,5 +1,6 @@
 package com.snaptask.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -25,7 +26,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun SnapTaskTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = LightColorScheme,
+        colorScheme = if (isSystemInDarkTheme()) DarkColorScheme else LightColorScheme,
         content = content
     )
 }

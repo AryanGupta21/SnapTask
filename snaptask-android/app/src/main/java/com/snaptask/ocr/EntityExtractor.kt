@@ -7,7 +7,6 @@ import com.google.mlkit.nl.entityextraction.EntityExtractorOptions
 import com.snaptask.network.models.ExtractedEntity
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 class EntityExtractor {
 
@@ -30,18 +29,19 @@ class EntityExtractor {
                     }
                     continuation.resume(entities)
                 }
-                .addOnFailureListener { exception ->
-                    continuation.resumeWithException(exception)
+                .addOnFailureListener {
+                    // Model may not be downloaded yet — proceed with raw text only
+                    continuation.resume(emptyList())
                 }
         }
 
     private fun entityTypeName(type: Int): String = when (type) {
         Entity.TYPE_DATE_TIME -> "DATE_TIME"
-        Entity.TYPE_PHONE -> "PHONE"
-        Entity.TYPE_EMAIL -> "EMAIL"
-        Entity.TYPE_ADDRESS -> "ADDRESS"
-        Entity.TYPE_MONEY -> "MONEY"
-        Entity.TYPE_URL -> "URL"
-        else -> "UNKNOWN"
+        Entity.TYPE_PHONE     -> "PHONE"
+        Entity.TYPE_EMAIL     -> "EMAIL"
+        Entity.TYPE_ADDRESS   -> "ADDRESS"
+        Entity.TYPE_MONEY     -> "MONEY"
+        Entity.TYPE_URL       -> "URL"
+        else                  -> "UNKNOWN"
     }
 }

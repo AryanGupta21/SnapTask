@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.snaptask.network.models.PlannedAction
 import com.snaptask.network.models.SnapTaskResponse
 
 sealed interface SheetState {
@@ -31,55 +32,119 @@ fun ConfirmationSheet(
         }
     }
 
-    BottomSheetScaffold(
-        sheetContent = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                when (val s = state) {
-                    is SheetState.Loading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                        Text("Reading image...", modifier = Modifier.align(Alignment.CenterHorizontally))
-                    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            when (val s = state) {
+                is SheetState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Text(
+                        text = "Reading image…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
 
-                    is SheetState.Ready -> {
-                        IntentBadge(intent = s.response.intent)
-                        Text(
-                            text = s.response.summary,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                is SheetState.Ready -> {
+                    IntentBadge(intent = s.response.intent)
+                    Text(
+                        text = s.response.summary,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    if (s.response.actions.isNotEmpty()) {
+                        HorizontalDivider()
                         s.response.actions.forEach { action ->
-                            Text(
-                                text = "• ${action.type.replace('_', ' ')}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                                Text("Cancel")
-                            }
-                            Button(onClick = { onExecute(s.response) }, modifier = Modifier.weight(1f)) {
-                                Text("Execute")
-                            }
+                            ActionRow(action)
                         }
                     }
-
-                    is SheetState.Error -> {
-                        Text("Could not process image", style = MaterialTheme.typography.titleMedium)
-                        Text(s.message, style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                            Text("Dismiss")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = { onExecute(s.response) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Execute")
                         }
                     }
                 }
+
+                is SheetState.Error -> {
+                    Text(
+                        text = "Could not process image",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = s.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
             }
-        },
-        scaffoldState = rememberBottomSheetScaffoldState()
-    ) {}
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(action: PlannedAction) {
+    val label = actionLabel(action)
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "•",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private fun actionLabel(action: PlannedAction): String = when (action.type) {
+    "create_calendar_event" -> buildString {
+        append(action.params["title"] as? String ?: "Event")
+        (action.params["dateTime"] as? String)?.let { append(" — $it") }
+        (action.params["location"] as? String)?.let { append(", $it") }
+    }
+    "create_contact" -> buildString {
+        append(action.params["name"] as? String ?: "Contact")
+        val details = listOfNotNull(
+            action.params["phone"] as? String,
+            action.params["email"] as? String,
+            action.params["company"] as? String
+        )
+        if (details.isNotEmpty()) append(" (${details.joinToString(", ")})")
+    }
+    "create_note" -> "Note: ${action.params["title"] as? String ?: "Untitled"}"
+    "log_expense" -> buildString {
+        val merchant = action.params["merchant"] as? String ?: "Expense"
+        val currency = action.params["currency"] as? String ?: "USD"
+        val amount = action.params["amount"]?.toString() ?: ""
+        append("$merchant — $currency $amount")
+    }
+    else -> action.type.replace('_', ' ')
 }
