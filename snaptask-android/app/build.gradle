@@ -36,7 +36,6 @@ android {
 dependencies {
     // ML Kit
     implementation 'com.google.mlkit:text-recognition:16.0.0'
-    implementation 'com.google.mlkit:entity-extraction:16.0.0-beta5'
 
     // Networking
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
