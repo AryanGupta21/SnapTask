@@ -1,6 +1,12 @@
 package com.snaptask.samsung
 
 import android.content.Context
+import android.content.Intent
+import android.util.Log
+
+private const val TAG = "NotesManager"
+private const val SAMSUNG_NOTES_PKG = "com.samsung.android.app.notes"
+private const val SAMSUNG_NOTES_ACTIVITY = "com.samsung.android.app.notes.ui.QuickNoteActivity"
 
 class NotesManager(private val context: Context) {
 
@@ -10,22 +16,20 @@ class NotesManager(private val context: Context) {
         @Suppress("UNCHECKED_CAST")
         val checklist = params["checklist"] as? List<String>
 
-        // Samsung Notes SDK integration:
-        // val note = SNote().apply {
-        //     this.title = title
-        //     if (checklist != null) {
-        //         val page = SNotePage()
-        //         checklist.forEach { item -> page.addChecklistItem(item) }
-        //         addPage(page)
-        //     } else {
-        //         this.body = body
-        //     }
-        // }
-        // SNoteController(context).createNote(note)
+        val content = if (checklist != null) {
+            checklist.joinToString("\n") { "☐ $it" }
+        } else {
+            if (body.isNotBlank()) "$title\n\n$body" else title
+        }
 
-        // TODO: Replace stub above with Samsung Notes SDK calls once .aar is available.
-        // Download the SDK from the Samsung Developers Portal and place it in app/libs/.
-        android.util.Log.d("NotesManager", "Would create note: $title\n$body")
+        Log.d(TAG, "Creating note: $title")
+
+        // Try Samsung Notes first, fall back to any notes/send handler
+        if (isSamsungNotesInstalled()) {
+            launchSamsungNotes(title, content)
+        } else {
+            launchGenericNote(title, content)
+        }
     }
 
     fun logExpense(params: Map<String, Any>) {
@@ -33,15 +37,43 @@ class NotesManager(private val context: Context) {
         val amount = params["amount"]?.toString() ?: "0"
         val currency = params["currency"] as? String ?: "USD"
         val date = params["date"] as? String ?: ""
-        val category = params["category"] as? String ?: "Expense"
+        val category = params["category"] as? String ?: "General"
 
-        val body = """
-            Merchant: $merchant
-            Amount: $currency $amount
-            Date: $date
-            Category: $category
-        """.trimIndent()
-
+        val body = "Merchant: $merchant\nAmount: $currency $amount\nDate: $date\nCategory: $category"
         create(mapOf("title" to "Expense: $merchant", "body" to body))
+    }
+
+    private fun isSamsungNotesInstalled(): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(SAMSUNG_NOTES_PKG, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun launchSamsungNotes(title: String, content: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            setPackage(SAMSUNG_NOTES_PKG)
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, content)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        Log.d(TAG, "Launching Samsung Notes")
+        context.startActivity(intent)
+    }
+
+    private fun launchGenericNote(title: String, content: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, content)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        Log.d(TAG, "Samsung Notes not found, launching share chooser")
+        context.startActivity(Intent.createChooser(intent, "Save note to…").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
     }
 }
