@@ -34,9 +34,10 @@ class CalendarManager(private val context: Context) {
         }
 
         val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            ?: return
+            ?: error("Calendar insert returned no event URI")
 
-        val eventId = eventUri.lastPathSegment?.toLongOrNull() ?: return
+        val eventId = eventUri.lastPathSegment?.toLongOrNull()
+            ?: error("Calendar insert returned an invalid event ID")
         val reminderValues = ContentValues().apply {
             put(CalendarContract.Reminders.EVENT_ID, eventId)
             put(CalendarContract.Reminders.MINUTES, reminderMinutes)
@@ -75,20 +76,22 @@ class CalendarManager(private val context: Context) {
     private fun getDefaultCalendarId(): Long? {
         val projection = arrayOf(CalendarContract.Calendars._ID)
 
-        // Prefer the primary calendar (IS_PRIMARY = 1)
+        // Prefer a primary writable calendar.
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
-            "${CalendarContract.Calendars.IS_PRIMARY} = 1",
+            "${CalendarContract.Calendars.IS_PRIMARY} = 1 AND " +
+                "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}",
             null,
             null
         )?.use { if (it.moveToFirst()) return it.getLong(0) }
 
-        // Fall back to any visible calendar
+        // Fall back to any visible writable calendar.
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
-            "${CalendarContract.Calendars.VISIBLE} = 1",
+            "${CalendarContract.Calendars.VISIBLE} = 1 AND " +
+                "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}",
             null,
             null
         )?.use { if (it.moveToFirst()) return it.getLong(0) }
