@@ -88,13 +88,18 @@ class ShareReceiverActivity : ComponentActivity() {
     private fun executeActions(response: SnapTaskResponse) {
         lifecycleScope.launch {
             if (!ensurePermissions()) return@launch
+            var launchedShareIntent = false
             response.actions.forEach { action ->
                 when (action.type) {
                     "create_calendar_event" -> CalendarManager(this@ShareReceiverActivity).create(action.params)
                     "create_contact"        -> ContactsManager(this@ShareReceiverActivity).create(action.params)
-                    "create_note"           -> NotesManager(this@ShareReceiverActivity).create(action.params)
-                    "log_expense"           -> NotesManager(this@ShareReceiverActivity).logExpense(action.params)
+                    "create_note"           -> { NotesManager(this@ShareReceiverActivity).create(action.params); launchedShareIntent = true }
+                    "log_expense"           -> { NotesManager(this@ShareReceiverActivity).logExpense(action.params); launchedShareIntent = true }
                 }
+            }
+            // For share-based intents (notes), delay finish so the chooser/app has time to appear
+            if (launchedShareIntent) {
+                kotlinx.coroutines.delay(500)
             }
             finish()
         }
