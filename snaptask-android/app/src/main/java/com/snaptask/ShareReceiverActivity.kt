@@ -9,10 +9,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +47,13 @@ class ShareReceiverActivity : ComponentActivity() {
         setContent {
             SnapTaskTheme {
                 val state by taskState
-                TaskResultScreen(state = state)
+                TaskResultScreen(
+                    state = state,
+                    onCancel = { finish() },
+                    onExecute = { response ->
+                        taskState.value = TaskState.ExecutionPreview(response.summary)
+                    }
+                )
             }
         }
 
@@ -85,7 +94,11 @@ class ShareReceiverActivity : ComponentActivity() {
 }
 
 @Composable
-private fun TaskResultScreen(state: TaskState) {
+private fun TaskResultScreen(
+    state: TaskState,
+    onCancel: () -> Unit,
+    onExecute: (SnapTaskResponse) -> Unit
+) {
     Surface(modifier = Modifier.fillMaxSize()) {
         when (state) {
             TaskState.ReadingImage -> CenteredMessage(text = "Reading image...")
@@ -98,7 +111,16 @@ private fun TaskResultScreen(state: TaskState) {
 
             is TaskState.Error -> CenteredMessage(text = state.message)
 
-            is TaskState.Planned -> PlanDetails(rawText = state.rawText, response = state.response)
+            is TaskState.Planned -> PlanDetails(
+                rawText = state.rawText,
+                response = state.response,
+                onCancel = onCancel,
+                onExecute = onExecute
+            )
+
+            is TaskState.ExecutionPreview -> CenteredMessage(
+                text = "Execute tapped. No phone data was changed yet.\n\n${state.summary}"
+            )
         }
     }
 }
@@ -133,7 +155,12 @@ private fun TextDetails(title: String, body: String, footer: String? = null) {
 }
 
 @Composable
-private fun PlanDetails(rawText: String, response: SnapTaskResponse) {
+private fun PlanDetails(
+    rawText: String,
+    response: SnapTaskResponse,
+    onCancel: () -> Unit,
+    onExecute: (SnapTaskResponse) -> Unit
+) {
     val firstAction = response.actions.firstOrNull()
 
     Column(
@@ -150,6 +177,18 @@ private fun PlanDetails(rawText: String, response: SnapTaskResponse) {
         Text(text = "Intent: ${response.intent}")
         Text(text = "Confidence: ${response.confidence}")
         Text(text = "Action: ${firstAction?.type ?: "none"}")
+        Text(text = "Params: ${firstAction?.params ?: emptyMap<String, Any>()}")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onCancel) {
+                Text(text = "Cancel")
+            }
+            Button(
+                onClick = { onExecute(response) },
+                enabled = response.actions.isNotEmpty()
+            ) {
+                Text(text = "Execute")
+            }
+        }
     }
 }
 
@@ -157,5 +196,6 @@ private sealed interface TaskState {
     data object ReadingImage : TaskState
     data class Classifying(val rawText: String) : TaskState
     data class Planned(val rawText: String, val response: SnapTaskResponse) : TaskState
+    data class ExecutionPreview(val summary: String) : TaskState
     data class Error(val message: String) : TaskState
 }
