@@ -1,11 +1,14 @@
 package com.snaptask
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,17 +27,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.snaptask.network.OpenClawClient
+import com.snaptask.network.models.PlannedAction
 import com.snaptask.network.models.SnapTaskResponse
 import com.snaptask.ocr.MLKitOCRProcessor
+import com.snaptask.samsung.ContactsManager
 import com.snaptask.ui.theme.SnapTaskTheme
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 
 class ShareReceiverActivity : ComponentActivity() {
 
     private val ocrProcessor = MLKitOCRProcessor()
     private val openClawClient = OpenClawClient.create()
+    private val contactsManager by lazy { ContactsManager(this) }
+    private var contactPermissionRequest: CompletableDeferred<Boolean>? = null
+
+    private val contactPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        contactPermissionRequest?.complete(granted)
+        contactPermissionRequest = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +67,9 @@ class ShareReceiverActivity : ComponentActivity() {
                     state = state,
                     onCancel = { finish() },
                     onExecute = { response ->
-                        taskState.value = TaskState.ExecutionPreview(response.summary)
+                        lifecycleScope.launch {
+                            taskState.value = executePlannedActions(response)
+                        }
                     }
                 )
             }
@@ -91,6 +109,40 @@ class ShareReceiverActivity : ComponentActivity() {
             i.getParcelableExtra(Intent.EXTRA_STREAM)
         }
     }
+
+    private suspend fun executePlannedActions(response: SnapTaskResponse): TaskState {
+        val action = response.actions.firstOrNull()
+            ?: return TaskState.Error("No action to execute")
+
+        return when (action.type) {
+            "create_contact" -> executeCreateContact(action)
+            else -> TaskState.Error("Execution is not implemented yet for ${action.type}")
+        }
+    }
+
+    private suspend fun executeCreateContact(action: PlannedAction): TaskState {
+        if (!ensureContactPermission()) {
+            return TaskState.Error("Contacts permission is required to create a contact")
+        }
+
+        return runCatching {
+            contactsManager.create(action.params)
+        }.fold(
+            onSuccess = { TaskState.Executed("Contact created") },
+            onFailure = { TaskState.Error("Could not create contact") }
+        )
+    }
+
+    private suspend fun ensureContactPermission(): Boolean {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            return true
+        }
+
+        val request = CompletableDeferred<Boolean>()
+        contactPermissionRequest = request
+        contactPermissionLauncher.launch(Manifest.permission.WRITE_CONTACTS)
+        return request.await()
+    }
 }
 
 @Composable
@@ -118,9 +170,7 @@ private fun TaskResultScreen(
                 onExecute = onExecute
             )
 
-            is TaskState.ExecutionPreview -> CenteredMessage(
-                text = "Execute tapped. No phone data was changed yet.\n\n${state.summary}"
-            )
+            is TaskState.Executed -> CenteredMessage(text = state.message)
         }
     }
 }
@@ -196,6 +246,6 @@ private sealed interface TaskState {
     data object ReadingImage : TaskState
     data class Classifying(val rawText: String) : TaskState
     data class Planned(val rawText: String, val response: SnapTaskResponse) : TaskState
-    data class ExecutionPreview(val summary: String) : TaskState
+    data class Executed(val message: String) : TaskState
     data class Error(val message: String) : TaskState
 }
