@@ -1,13 +1,15 @@
 package com.snaptask
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -38,6 +40,10 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> uri?.let { launchPipeline(it) } }
 
+    private val requestCameraPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) openCamera() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -55,6 +61,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchCamera() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED) {
+            openCamera()
+        } else {
+            requestCameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun openCamera() {
         val file = File(cacheDir, "camera/snap_${System.currentTimeMillis()}.jpg")
             .also { it.parentFile?.mkdirs() }
         val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
