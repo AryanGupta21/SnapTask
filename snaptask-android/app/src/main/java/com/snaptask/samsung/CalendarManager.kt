@@ -1,13 +1,12 @@
 package com.snaptask.samsung
 
-import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.provider.CalendarContract
 import android.util.Log
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.util.TimeZone
 
 private const val TAG = "CalendarManager"
 
@@ -31,7 +30,6 @@ class CalendarManager(private val context: Context) {
                     return
                 }
             }
-        Log.d(TAG, "startMs=$startMs")
 
         val endMs = (params["endDateTime"] as? String)
             ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
@@ -45,77 +43,18 @@ class CalendarManager(private val context: Context) {
             else -> 60
         }
 
-        val calendarId = getDefaultCalendarId()
-        if (calendarId == null) {
-            Log.e(TAG, "No calendar account found — add a Google account on the device")
-            return
-        }
-        Log.d(TAG, "Using calendarId=$calendarId")
+        val intent = Intent(Intent.ACTION_INSERT)
+            .setData(CalendarContract.Events.CONTENT_URI)
+            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMs)
+            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMs)
+            .putExtra(CalendarContract.Events.TITLE, title)
+            .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
+            .putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, false)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val values = ContentValues().apply {
-            put(CalendarContract.Events.TITLE, title)
-            put(CalendarContract.Events.DTSTART, startMs)
-            put(CalendarContract.Events.DTEND, endMs)
-            put(CalendarContract.Events.CALENDAR_ID, calendarId)
-            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-            location?.let { put(CalendarContract.Events.EVENT_LOCATION, it) }
-        }
+        location?.let { intent.putExtra(CalendarContract.Events.EVENT_LOCATION, it) }
 
-        val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-        if (eventUri == null) {
-            Log.e(TAG, "contentResolver.insert returned null — insert failed")
-            return
-        }
-        Log.d(TAG, "Event created: $eventUri")
-
-        val eventId = eventUri.lastPathSegment?.toLongOrNull()
-        if (eventId == null) {
-            Log.w(TAG, "Could not parse eventId from URI: $eventUri")
-            return
-        }
-
-        val reminderValues = ContentValues().apply {
-            put(CalendarContract.Reminders.EVENT_ID, eventId)
-            put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
-        }
-        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-        Log.d(TAG, "Reminder set: ${reminderMinutes}min before")
-    }
-
-    private fun getDefaultCalendarId(): Long? {
-        val projection = arrayOf(
-            CalendarContract.Calendars._ID,
-            CalendarContract.Calendars.ACCOUNT_NAME,
-            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-        )
-
-        context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI, projection,
-            "${CalendarContract.Calendars.IS_PRIMARY} = 1", null, null
-        )?.use {
-            Log.d(TAG, "Primary calendar query: ${it.count} rows")
-            if (it.moveToFirst()) {
-                val id = it.getLong(0)
-                val account = it.getString(1)
-                val name = it.getString(2)
-                Log.d(TAG, "Selected calendar: id=$id account=$account name=$name")
-                return id
-            }
-        }
-
-        context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI, projection,
-            "${CalendarContract.Calendars.VISIBLE} = 1", null, null
-        )?.use {
-            Log.d(TAG, "Visible calendar query: ${it.count} rows")
-            while (it.moveToNext()) {
-                Log.d(TAG, "  Calendar: id=${it.getLong(0)} account=${it.getString(1)} name=${it.getString(2)}")
-            }
-            it.moveToFirst()
-            if (!it.isAfterLast) return it.getLong(0)
-        }
-
-        return null
+        Log.d(TAG, "Launching Calendar intent for: $title at $dateTime")
+        context.startActivity(intent)
     }
 }
