@@ -170,8 +170,6 @@ private fun PlanDetails(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text = "Extracted text")
-        Text(text = rawText)
         Text(text = "Planned action")
         Text(text = response.summary)
         Text(text = "Intent: ${response.intent}")
@@ -189,6 +187,8 @@ private fun PlanDetails(
                 Text(text = "Execute")
             }
         }
+        Text(text = "Extracted text")
+        Text(text = rawText)
     }
 }
 
