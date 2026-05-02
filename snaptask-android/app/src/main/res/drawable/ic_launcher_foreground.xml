@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Camera body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,44H69L66,38H42L39,44H30C26.7,44 24,46.7 24,50V76C24,79.3 26.7,82 30,82H78C81.3,82 84,79.3 84,76V50C84,46.7 81.3,44 78,44Z" />
+    <!-- Lens ring -->
+    <path
+        android:fillColor="#1428A0"
+        android:pathData="M54,52m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+    <!-- Lightning bolt -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,46L51,56H56L51,66L63,54H57Z" />
+    <!-- Viewfinder dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M74,50m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+</vector>
