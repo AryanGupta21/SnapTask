@@ -2,6 +2,7 @@ package com.snaptask.samsung
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.provider.CalendarContract
 import java.time.Instant
 import java.time.LocalDateTime
@@ -42,6 +43,24 @@ class CalendarManager(private val context: Context) {
             put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
         }
         context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+    }
+
+    fun buildInsertIntent(params: Map<String, Any>): Intent? {
+        val title = params["title"] as? String ?: return null
+        val dateTime = params["dateTime"] as? String ?: return null
+        val location = params["location"] as? String
+        val startMs = parseDateTimeMillis(dateTime) ?: return null
+        val endMs = (params["endDateTime"] as? String)
+            ?.let { parseDateTimeMillis(it) }
+            ?: (startMs + 60 * 60 * 1000)
+
+        return Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.Events.TITLE, title)
+            putExtra(CalendarContract.Events.EVENT_LOCATION, location)
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMs)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMs)
+        }
     }
 
     private fun parseDateTimeMillis(value: String): Long? =

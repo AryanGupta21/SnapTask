@@ -153,6 +153,18 @@ class ShareReceiverActivity : ComponentActivity() {
             calendarManager.create(action.params)
         }.fold(
             onSuccess = { TaskState.Executed("Calendar event created") },
+            onFailure = { openCalendarEditor(action) }
+        )
+    }
+
+    private fun openCalendarEditor(action: PlannedAction): TaskState {
+        val intent = calendarManager.buildInsertIntent(action.params)
+            ?: return TaskState.Error("Could not prepare calendar event")
+
+        return runCatching {
+            startActivity(intent)
+        }.fold(
+            onSuccess = { TaskState.Executed("Calendar editor opened. Tap Save to create the event.") },
             onFailure = { TaskState.Error("Could not create calendar event") }
         )
     }
