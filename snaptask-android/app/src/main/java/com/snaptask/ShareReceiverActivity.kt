@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.snaptask.network.OpenClawClient
+import com.snaptask.network.models.SnapTaskResponse
 import com.snaptask.ocr.MLKitOCRProcessor
 import com.snaptask.ui.theme.SnapTaskTheme
 import kotlinx.coroutines.launch
@@ -29,31 +31,43 @@ import kotlinx.coroutines.launch
 class ShareReceiverActivity : ComponentActivity() {
 
     private val ocrProcessor = MLKitOCRProcessor()
+    private val openClawClient = OpenClawClient.create()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val imageUri = extractSharedImageUri(intent)
-        val ocrState = mutableStateOf<OcrState>(
-            if (imageUri == null) OcrState.Error("No image received") else OcrState.Loading
+        val taskState = mutableStateOf<TaskState>(
+            if (imageUri == null) TaskState.Error("No image received") else TaskState.ReadingImage
         )
 
         setContent {
             SnapTaskTheme {
-                val state by ocrState
-                OcrResultScreen(state = state)
+                val state by taskState
+                TaskResultScreen(state = state)
             }
         }
 
         if (imageUri != null) {
             lifecycleScope.launch {
-                ocrState.value = runCatching {
+                val rawText = runCatching {
                     ocrProcessor.process(this@ShareReceiverActivity, imageUri).trim()
+                }.getOrElse {
+                    taskState.value = TaskState.Error("Could not read text from image")
+                    return@launch
+                }
+
+                if (rawText.isBlank()) {
+                    taskState.value = TaskState.Error("No text found")
+                    return@launch
+                }
+
+                taskState.value = TaskState.Classifying(rawText)
+                taskState.value = runCatching {
+                    openClawClient.process(rawText, emptyList())
                 }.fold(
-                    onSuccess = { text ->
-                        if (text.isBlank()) OcrState.Success("No text found") else OcrState.Success(text)
-                    },
-                    onFailure = { OcrState.Error("Could not read text from image") }
+                    onSuccess = { response -> TaskState.Planned(rawText, response) },
+                    onFailure = { TaskState.Error("Gateway unreachable. Is it running on your computer?") }
                 )
             }
         }
@@ -71,43 +85,77 @@ class ShareReceiverActivity : ComponentActivity() {
 }
 
 @Composable
-private fun OcrResultScreen(state: OcrState) {
+private fun TaskResultScreen(state: TaskState) {
     Surface(modifier = Modifier.fillMaxSize()) {
         when (state) {
-            OcrState.Loading -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "Reading image...")
-            }
+            TaskState.ReadingImage -> CenteredMessage(text = "Reading image...")
 
-            is OcrState.Error -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = state.message)
-            }
+            is TaskState.Classifying -> TextDetails(
+                title = "Extracted text",
+                body = state.rawText,
+                footer = "Classifying intent..."
+            )
 
-            is OcrState.Success -> Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(text = "Extracted text")
-                Text(text = state.text)
-            }
+            is TaskState.Error -> CenteredMessage(text = state.message)
+
+            is TaskState.Planned -> PlanDetails(rawText = state.rawText, response = state.response)
         }
     }
 }
 
-private sealed interface OcrState {
-    data object Loading : OcrState
-    data class Success(val text: String) : OcrState
-    data class Error(val message: String) : OcrState
+@Composable
+private fun CenteredMessage(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text)
+    }
+}
+
+@Composable
+private fun TextDetails(title: String, body: String, footer: String? = null) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(text = title)
+        Text(text = body)
+        if (footer != null) {
+            Text(text = footer)
+        }
+    }
+}
+
+@Composable
+private fun PlanDetails(rawText: String, response: SnapTaskResponse) {
+    val firstAction = response.actions.firstOrNull()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(text = "Extracted text")
+        Text(text = rawText)
+        Text(text = "Planned action")
+        Text(text = response.summary)
+        Text(text = "Intent: ${response.intent}")
+        Text(text = "Confidence: ${response.confidence}")
+        Text(text = "Action: ${firstAction?.type ?: "none"}")
+    }
+}
+
+private sealed interface TaskState {
+    data object ReadingImage : TaskState
+    data class Classifying(val rawText: String) : TaskState
+    data class Planned(val rawText: String, val response: SnapTaskResponse) : TaskState
+    data class Error(val message: String) : TaskState
 }
