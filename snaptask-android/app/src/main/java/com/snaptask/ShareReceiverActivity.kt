@@ -33,6 +33,7 @@ import com.snaptask.network.OpenClawClient
 import com.snaptask.network.models.PlannedAction
 import com.snaptask.network.models.SnapTaskResponse
 import com.snaptask.ocr.MLKitOCRProcessor
+import com.snaptask.samsung.CalendarManager
 import com.snaptask.samsung.ContactsManager
 import com.snaptask.ui.theme.SnapTaskTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -43,13 +44,22 @@ class ShareReceiverActivity : ComponentActivity() {
     private val ocrProcessor = MLKitOCRProcessor()
     private val openClawClient = OpenClawClient.create()
     private val contactsManager by lazy { ContactsManager(this) }
+    private val calendarManager by lazy { CalendarManager(this) }
     private var contactPermissionRequest: CompletableDeferred<Boolean>? = null
+    private var calendarPermissionRequest: CompletableDeferred<Boolean>? = null
 
     private val contactPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         contactPermissionRequest?.complete(granted)
         contactPermissionRequest = null
+    }
+
+    private val calendarPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        calendarPermissionRequest?.complete(results.values.all { it })
+        calendarPermissionRequest = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -116,6 +126,7 @@ class ShareReceiverActivity : ComponentActivity() {
 
         return when (action.type) {
             "create_contact" -> executeCreateContact(action)
+            "create_calendar_event" -> executeCreateCalendarEvent(action)
             else -> TaskState.Error("Execution is not implemented yet for ${action.type}")
         }
     }
@@ -133,6 +144,19 @@ class ShareReceiverActivity : ComponentActivity() {
         )
     }
 
+    private suspend fun executeCreateCalendarEvent(action: PlannedAction): TaskState {
+        if (!ensureCalendarPermission()) {
+            return TaskState.Error("Calendar permission is required to create an event")
+        }
+
+        return runCatching {
+            calendarManager.create(action.params)
+        }.fold(
+            onSuccess = { TaskState.Executed("Calendar event created") },
+            onFailure = { TaskState.Error("Could not create calendar event") }
+        )
+    }
+
     private suspend fun ensureContactPermission(): Boolean {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
             return true
@@ -141,6 +165,21 @@ class ShareReceiverActivity : ComponentActivity() {
         val request = CompletableDeferred<Boolean>()
         contactPermissionRequest = request
         contactPermissionLauncher.launch(Manifest.permission.WRITE_CONTACTS)
+        return request.await()
+    }
+
+    private suspend fun ensureCalendarPermission(): Boolean {
+        val permissions = arrayOf(
+            Manifest.permission.READ_CALENDAR,
+            Manifest.permission.WRITE_CALENDAR
+        )
+        if (permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
+            return true
+        }
+
+        val request = CompletableDeferred<Boolean>()
+        calendarPermissionRequest = request
+        calendarPermissionLauncher.launch(permissions)
         return request.await()
     }
 }

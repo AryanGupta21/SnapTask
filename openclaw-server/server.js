@@ -75,7 +75,6 @@ Respond with valid JSON only:
 
 function fallbackClassify(rawText) {
   const text = rawText.trim();
-  const lower = text.toLowerCase();
   const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || null;
   const phone = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.trim() || null;
   const amount = text.match(/(?:rs\.?|inr|usd|\$)\s*([0-9]+(?:\.[0-9]{1,2})?)/i)?.[1]
@@ -83,6 +82,8 @@ function fallbackClassify(rawText) {
     || null;
   const hasDate = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}[/-]\d{1,2})/i.test(text);
   const hasTime = /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i.test(text);
+  const eventDate = extractEventDate(text);
+  const eventTime = extractEventTime(text);
 
   if (amount) {
     return {
@@ -95,6 +96,21 @@ function fallbackClassify(rawText) {
         currency: /(?:rs\.?|inr)/i.test(text) ? 'INR' : 'USD',
       },
       confidence: 0.7,
+    };
+  }
+
+  if (hasDate || hasTime || eventDate || eventTime) {
+    return {
+      intent: 'event',
+      summary: 'Create a calendar event from the extracted text',
+      skill: 'samsung-calendar',
+      params: {
+        title: firstLine(text),
+        date: eventDate || new Date().toISOString().split('T')[0],
+        time: eventTime || '09:00',
+        location: extractLocation(text),
+      },
+      confidence: 0.78,
     };
   }
 
@@ -112,20 +128,6 @@ function fallbackClassify(rawText) {
     };
   }
 
-  if (hasDate || hasTime) {
-    return {
-      intent: 'event',
-      summary: 'Create a calendar event from the extracted text',
-      skill: 'samsung-calendar',
-      params: {
-        title: firstLine(text),
-        date: new Date().toISOString().split('T')[0],
-        time: '09:00',
-      },
-      confidence: 0.58,
-    };
-  }
-
   return {
     intent: 'note',
     summary: 'Create a note from the extracted text',
@@ -140,6 +142,40 @@ function fallbackClassify(rawText) {
 
 function firstLine(text) {
   return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || 'Untitled';
+}
+
+function extractEventTime(text) {
+  const match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (!match) return null;
+
+  let hours = Number(match[1]);
+  const minutes = match[2] || '00';
+  const meridiem = match[3].toLowerCase();
+
+  if (meridiem === 'pm' && hours < 12) hours += 12;
+  if (meridiem === 'am' && hours === 12) hours = 0;
+
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+}
+
+function extractEventDate(text) {
+  const match = text.match(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*,?\s+(\d{4})\b/i);
+  if (!match) return null;
+
+  const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    .indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
+
+  return `${match[3]}-${String(month).padStart(2, '0')}-${String(Number(match[1])).padStart(2, '0')}`;
+}
+
+function extractLocation(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const venueIndex = lines.findIndex((line) => /^venue$/i.test(line));
+  if (venueIndex >= 0 && lines[venueIndex + 1]) {
+    return lines.slice(venueIndex + 1, venueIndex + 3).join(', ');
+  }
+
+  return null;
 }
 
 async function classifyIntent(rawText, entities) {

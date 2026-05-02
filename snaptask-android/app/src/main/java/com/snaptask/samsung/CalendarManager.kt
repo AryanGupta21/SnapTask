@@ -4,6 +4,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.TimeZone
 
 class CalendarManager(private val context: Context) {
@@ -14,12 +16,12 @@ class CalendarManager(private val context: Context) {
         val location = params["location"] as? String
         val reminderMinutes = (params["reminderMinutes"] as? Double)?.toInt() ?: 60
 
-        val startMs = Instant.parse(dateTime).toEpochMilli()
+        val startMs = parseDateTimeMillis(dateTime) ?: error("Invalid event start dateTime")
         val endMs = (params["endDateTime"] as? String)
-            ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+            ?.let { parseDateTimeMillis(it) }
             ?: (startMs + 60 * 60 * 1000)
 
-        val calendarId = getDefaultCalendarId() ?: return
+        val calendarId = getDefaultCalendarId() ?: error("No writable calendar found")
 
         val values = ContentValues().apply {
             put(CalendarContract.Events.TITLE, title)
@@ -41,6 +43,15 @@ class CalendarManager(private val context: Context) {
         }
         context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
     }
+
+    private fun parseDateTimeMillis(value: String): Long? =
+        runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
+            ?: runCatching {
+                LocalDateTime.parse(value)
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            }.getOrNull()
 
     private fun getDefaultCalendarId(): Long? {
         val projection = arrayOf(CalendarContract.Calendars._ID)
