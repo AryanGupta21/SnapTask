@@ -14,6 +14,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -31,13 +32,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.snaptask.ui.HistoryScreen
 import com.snaptask.ui.theme.SnapTaskTheme
 import java.io.File
 
 private val BG = Color(0xFF0D0D14)
 private val PRIMARY = Color(0xFFFFFFFF)
 private val MUTED = Color(0xFF6B7280)
-private val ACCENT = Color(0xFF6366F1) // indigo — subtle AI feel
+
+private enum class Screen { Home, History }
 
 class MainActivity : ComponentActivity() {
 
@@ -60,16 +63,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SnapTaskTheme {
-                HomeScreen(
-                    context = this,
-                    refreshKey = refreshKey,
-                    onSnap = { launchCamera() },
-                    onGallery = {
-                        pickFromGallery.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    }
-                )
+                var screen by remember { mutableStateOf(Screen.Home) }
+
+                when (screen) {
+                    Screen.Home -> HomeScreen(
+                        context = this,
+                        refreshKey = refreshKey,
+                        onSnap = { launchCamera() },
+                        onGallery = {
+                            pickFromGallery.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        onViewHistory = { screen = Screen.History }
+                    )
+                    Screen.History -> HistoryScreen(
+                        context = this,
+                        onBack = { screen = Screen.Home },
+                        onClear = { refreshKey++ }
+                    )
+                }
             }
         }
     }
@@ -111,6 +124,7 @@ fun HomeScreen(
     refreshKey: Int,
     onSnap: () -> Unit,
     onGallery: () -> Unit,
+    onViewHistory: () -> Unit,
 ) {
     val totalActions = remember(refreshKey) { ActionHistory.load(context).size }
 
@@ -125,7 +139,6 @@ fun HomeScreen(
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top bar — minimal, not competing
             Spacer(Modifier.height(52.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -142,7 +155,6 @@ fun HomeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Headline — first thing eyes land on
             Text(
                 text = "Point at anything\nwith text.",
                 color = PRIMARY,
@@ -154,7 +166,6 @@ fun HomeScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Subtext — sets expectation, reduces uncertainty
             Text(
                 text = "Poster, receipt, business card,\nwhiteboard — we'll handle the rest.",
                 color = MUTED,
@@ -165,12 +176,10 @@ fun HomeScreen(
 
             Spacer(Modifier.height(52.dp))
 
-            // Primary action — dominant
             SnapButton(onClick = onSnap)
 
             Spacer(Modifier.height(24.dp))
 
-            // Secondary — text only, no button weight
             TextButton(onClick = onGallery) {
                 Text(
                     text = "Use a photo instead",
@@ -181,16 +190,18 @@ fun HomeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Activity footer — only visible when there's history
             AnimatedVisibility(
                 visible = totalActions > 0,
                 enter = fadeIn(tween(600))
             ) {
                 Text(
-                    text = "$totalActions action${if (totalActions == 1) "" else "s"} saved",
-                    color = MUTED.copy(alpha = 0.5f),
+                    text = "$totalActions action${if (totalActions == 1) "" else "s"} saved  →",
+                    color = MUTED.copy(alpha = 0.6f),
                     fontSize = 12.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clickable { onViewHistory() }
+                        .padding(8.dp)
                 )
             }
 

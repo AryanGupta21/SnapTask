@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.snaptask.network.OpenClawClient
+import com.snaptask.network.models.PlannedAction
 import com.snaptask.network.models.SnapTaskResponse
 import com.snaptask.ocr.EntityExtractor
 import com.snaptask.ocr.MLKitOCRProcessor
@@ -92,11 +93,12 @@ class ShareReceiverActivity : ComponentActivity() {
             if (!ensurePermissions()) return@launch
             var launchedShareIntent = false
             response.actions.forEach { action ->
+                val label = actionLabel(action)
                 when (action.type) {
-                    "create_calendar_event" -> { CalendarManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type) }
-                    "create_contact"        -> { ContactsManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type) }
-                    "create_note"           -> { NotesManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type); launchedShareIntent = true }
-                    "log_expense"           -> { NotesManager(this@ShareReceiverActivity).logExpense(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type); launchedShareIntent = true }
+                    "create_calendar_event" -> { CalendarManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type, label) }
+                    "create_contact"        -> { ContactsManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type, label) }
+                    "create_note"           -> { NotesManager(this@ShareReceiverActivity).create(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type, label); launchedShareIntent = true }
+                    "log_expense"           -> { NotesManager(this@ShareReceiverActivity).logExpense(action.params); ActionHistory.record(this@ShareReceiverActivity, action.type, label); launchedShareIntent = true }
                 }
             }
             // For share-based intents (notes), delay finish so the chooser/app has time to appear
@@ -114,5 +116,29 @@ class ShareReceiverActivity : ComponentActivity() {
             Manifest.permission.READ_CALENDAR,
             Manifest.permission.WRITE_CALENDAR,
         )
+
+        fun actionLabel(action: PlannedAction): String = when (action.type) {
+            "create_calendar_event" -> buildString {
+                append(action.params["title"] as? String ?: "Event")
+                (action.params["dateTime"] as? String)?.let { append(" — $it") }
+                (action.params["location"] as? String)?.let { append(", $it") }
+            }
+            "create_contact" -> buildString {
+                append(action.params["name"] as? String ?: "Contact")
+                val details = listOfNotNull(
+                    action.params["phone"] as? String,
+                    action.params["email"] as? String
+                )
+                if (details.isNotEmpty()) append(" (${details.joinToString(", ")})")
+            }
+            "create_note" -> action.params["title"] as? String ?: "Note"
+            "log_expense" -> buildString {
+                append(action.params["merchant"] as? String ?: "Expense")
+                val currency = action.params["currency"] as? String ?: "USD"
+                val amount = action.params["amount"]?.toString() ?: ""
+                if (amount.isNotBlank()) append(" — $currency $amount")
+            }
+            else -> action.type.replace('_', ' ')
+        }
     }
 }
