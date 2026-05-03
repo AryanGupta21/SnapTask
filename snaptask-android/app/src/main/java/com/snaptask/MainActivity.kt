@@ -10,25 +10,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -36,14 +34,10 @@ import androidx.core.content.FileProvider
 import com.snaptask.ui.theme.SnapTaskTheme
 import java.io.File
 
-// Radar color palette
-private val BG = Color(0xFF020907)
-private val RADAR_GREEN = Color(0xFF00FF41)
-private val DIM_GREEN = RADAR_GREEN.copy(alpha = 0.12f)
-private val BLIP_CALENDAR = Color(0xFF60A5FA)
-private val BLIP_CONTACT = Color(0xFF34D399)
-private val BLIP_NOTE = Color(0xFFFBBF24)
-private val BLIP_EXPENSE = Color(0xFFF87171)
+private val BG = Color(0xFF0D0D14)
+private val PRIMARY = Color(0xFFFFFFFF)
+private val MUTED = Color(0xFF6B7280)
+private val ACCENT = Color(0xFF6366F1) // indigo — subtle AI feel
 
 class MainActivity : ComponentActivity() {
 
@@ -66,11 +60,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SnapTaskTheme {
-                RadarScreen(
+                HomeScreen(
                     context = this,
                     refreshKey = refreshKey,
-                    onScanCamera = { launchCamera() },
-                    onPickGallery = {
+                    onSnap = { launchCamera() },
+                    onGallery = {
                         pickFromGallery.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
@@ -112,263 +106,151 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun RadarScreen(
+fun HomeScreen(
     context: Context,
     refreshKey: Int,
-    onScanCamera: () -> Unit,
-    onPickGallery: () -> Unit,
+    onSnap: () -> Unit,
+    onGallery: () -> Unit,
 ) {
-    val blips = remember(refreshKey) { ActionHistory.load(context) }
-    val infiniteTransition = rememberInfiniteTransition(label = "radar")
-
-    val sweepAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
-        label = "sweep"
-    )
-    val statusPulse by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "status"
-    )
+    val totalActions = remember(refreshKey) { ActionHistory.load(context).size }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(BG)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            HudHeader(statusPulse)
-
-            Spacer(Modifier.weight(1f))
-
-            // Radar
-            Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Top bar — minimal, not competing
+            Spacer(Modifier.height(52.dp))
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    RadarCanvas(
-                        sweepAngle = sweepAngle,
-                        blips = blips,
-                        onTap = onScanCamera
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Text(
-                        text = "[ TAP TO SCAN ]",
-                        color = RADAR_GREEN.copy(alpha = 0.5f),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        letterSpacing = 3.sp
-                    )
-                }
+                Text(
+                    text = "SnapTask",
+                    color = MUTED,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.5.sp
+                )
             }
 
             Spacer(Modifier.weight(1f))
 
-            ActionStatsRow(blips)
-
-            // Gallery shortcut
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                TextButton(onClick = onPickGallery) {
-                    Text(
-                        text = "or pick from gallery",
-                        color = RADAR_GREEN.copy(alpha = 0.35f),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun HudHeader(statusPulse: Float) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
+            // Headline — first thing eyes land on
             Text(
-                text = "■  SNAPTASK",
-                color = RADAR_GREEN,
-                fontFamily = FontFamily.Monospace,
+                text = "Point at anything\nwith text.",
+                color = PRIMARY,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 2.sp
+                lineHeight = 38.sp,
+                modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Subtext — sets expectation, reduces uncertainty
             Text(
-                text = "AI VISION  v1.0",
-                color = RADAR_GREEN.copy(alpha = 0.4f),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                letterSpacing = 1.sp
+                text = "Poster, receipt, business card,\nwhiteboard — we'll handle the rest.",
+                color = MUTED,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                modifier = Modifier.fillMaxWidth()
             )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+
+            Spacer(Modifier.height(52.dp))
+
+            // Primary action — dominant
+            SnapButton(onClick = onSnap)
+
+            Spacer(Modifier.height(24.dp))
+
+            // Secondary — text only, no button weight
+            TextButton(onClick = onGallery) {
                 Text(
-                    text = "●",
-                    color = RADAR_GREEN.copy(alpha = statusPulse),
-                    fontSize = 9.sp
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "READY",
-                    color = RADAR_GREEN,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
+                    text = "Use a photo instead",
+                    color = MUTED,
+                    fontSize = 14.sp
                 )
             }
-            Text(
-                text = "SYS  OK",
-                color = RADAR_GREEN.copy(alpha = 0.4f),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                letterSpacing = 1.sp
-            )
-        }
-    }
-}
 
-@Composable
-private fun RadarCanvas(
-    sweepAngle: Float,
-    blips: List<ActionHistory.Blip>,
-    onTap: () -> Unit,
-) {
-    Canvas(
-        modifier = Modifier
-            .size(280.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onTap
-            )
-    ) {
-        val radarRadius = size.minDimension / 2f * 0.92f
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val radarCenter = Offset(cx, cy)
+            Spacer(Modifier.weight(1f))
 
-        // Concentric rings
-        listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { f ->
-            drawCircle(DIM_GREEN, radarRadius * f, radarCenter, style = Stroke(1f))
-        }
-
-        // Cross hairs
-        val lineAlpha = 0.08f
-        drawLine(RADAR_GREEN.copy(lineAlpha), Offset(cx - radarRadius, cy), Offset(cx + radarRadius, cy), 1f)
-        drawLine(RADAR_GREEN.copy(lineAlpha), Offset(cx, cy - radarRadius), Offset(cx, cy + radarRadius), 1f)
-
-        // Sweep trail — 10 arc segments with fading alpha
-        rotate(sweepAngle, pivot = radarCenter) {
-            val segDeg = 9f
-            repeat(10) { i ->
-                val alpha = ((10 - i).toFloat() / 10f) * 0.55f
-                drawArc(
-                    color = RADAR_GREEN.copy(alpha = alpha),
-                    startAngle = -90f - (i + 1) * segDeg,
-                    sweepAngle = segDeg,
-                    useCenter = true,
-                    topLeft = Offset(cx - radarRadius, cy - radarRadius),
-                    size = Size(radarRadius * 2, radarRadius * 2)
+            // Activity footer — only visible when there's history
+            AnimatedVisibility(
+                visible = totalActions > 0,
+                enter = fadeIn(tween(600))
+            ) {
+                Text(
+                    text = "$totalActions action${if (totalActions == 1) "" else "s"} saved",
+                    color = MUTED.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
                 )
             }
-            // Leading edge line
-            drawLine(
-                color = RADAR_GREEN,
-                start = radarCenter,
-                end = Offset(cx, cy - radarRadius),
-                strokeWidth = 1.5f
-            )
+
+            Spacer(Modifier.height(36.dp))
         }
-
-        // Blips
-        blips.forEach { blip ->
-            val ageMin = (System.currentTimeMillis() - blip.timestamp) / 60_000f
-            val alpha = (1f - ageMin / 60f).coerceIn(0.1f, 1f)
-            val bx = cx + blip.x * radarRadius
-            val by = cy + blip.y * radarRadius
-            val offset = Offset(bx, by)
-            val color = blipColor(blip.type)
-            // Outer glow
-            drawCircle(color.copy(alpha = alpha * 0.15f), 14f, offset)
-            drawCircle(color.copy(alpha = alpha * 0.4f), 6f, offset)
-            // Core dot
-            drawCircle(color.copy(alpha = alpha), 3f, offset)
-        }
-
-        // Center dot
-        drawCircle(RADAR_GREEN.copy(alpha = 0.6f), 3f, radarCenter)
     }
 }
 
 @Composable
-private fun ActionStatsRow(blips: List<ActionHistory.Blip>) {
-    val calendar = blips.count { it.type == "create_calendar_event" }
-    val contacts = blips.count { it.type == "create_contact" }
-    val notes = blips.count { it.type == "create_note" || it.type == "log_expense" }
+private fun SnapButton(onClick: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            tween(2400, easing = EaseInOutSine),
+            RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        StatItem("EVENTS", calendar, BLIP_CALENDAR)
-        StatDivider()
-        StatItem("CONTACTS", contacts, BLIP_CONTACT)
-        StatDivider()
-        StatItem("NOTES", notes, BLIP_NOTE)
-    }
-}
+    var pressed by remember { mutableStateOf(false) }
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.93f else pulseScale,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "press"
+    )
 
-@Composable
-private fun StatItem(label: String, count: Int, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = "%02d".format(count),
-            color = color,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            fontSize = 28.sp
-        )
-        Text(
-            text = label,
-            color = color.copy(alpha = 0.5f),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 8.sp,
-            letterSpacing = 2.sp
-        )
-    }
-}
-
-@Composable
-private fun StatDivider() {
     Box(
         modifier = Modifier
-            .width(1.dp)
-            .height(40.dp)
-            .background(RADAR_GREEN.copy(alpha = 0.1f), RoundedCornerShape(1.dp))
-    )
-}
-
-private fun blipColor(type: String): Color = when {
-    type.contains("calendar") -> BLIP_CALENDAR
-    type.contains("contact") -> BLIP_CONTACT
-    type.contains("expense") -> BLIP_EXPENSE
-    type.contains("note") -> BLIP_NOTE
-    else -> RADAR_GREEN
+            .size(200.dp)
+            .scale(pressScale)
+            .background(PRIMARY, CircleShape)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                    },
+                    onTap = { onClick() }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Snap",
+                color = BG,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "it",
+                color = BG.copy(alpha = 0.5f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal
+            )
+        }
+    }
 }
