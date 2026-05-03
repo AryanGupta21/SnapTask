@@ -1,6 +1,7 @@
 package com.snaptask
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -9,8 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,19 +23,30 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.snaptask.ui.HistoryScreen
 import com.snaptask.ui.theme.SnapTaskTheme
 import java.io.File
+
+private val BG      = Color(0xFF0D0D14)
+private val PRIMARY = Color(0xFFFFFFFF)
+private val MUTED   = Color(0xFF9CA3AF)   // bumped up one stop — easier to read
+private val ACCENT  = Color(0xFF6366F1)
+
+private enum class Screen { Home, History }
 
 class MainActivity : ComponentActivity() {
 
     private var pendingCameraUri: Uri? = null
+    private var refreshKey by mutableIntStateOf(0)
 
     private val takePicture = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) pendingCameraUri?.let { launchPipeline(it) }
@@ -48,33 +64,46 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SnapTaskTheme {
-                LauncherScreen(
-                    onScanCamera = { launchCamera() },
-                    onPickGallery = {
-                        pickFromGallery.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    }
-                )
+                var screen by remember { mutableStateOf(Screen.Home) }
+                when (screen) {
+                    Screen.Home -> HomeScreen(
+                        context = this,
+                        refreshKey = refreshKey,
+                        onSnap = { launchCamera() },
+                        onGallery = {
+                            pickFromGallery.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        onViewHistory = { screen = Screen.History }
+                    )
+                    Screen.History -> HistoryScreen(
+                        context = this,
+                        onBack = { screen = Screen.Home },
+                        onClear = { refreshKey++ }
+                    )
+                }
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshKey++
+    }
+
     private fun launchCamera() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED) {
-            openCamera()
-        } else {
-            requestCameraPermission.launch(Manifest.permission.CAMERA)
-        }
+            == PackageManager.PERMISSION_GRANTED
+        ) openCamera()
+        else requestCameraPermission.launch(Manifest.permission.CAMERA)
     }
 
     private fun openCamera() {
         val file = File(cacheDir, "camera/snap_${System.currentTimeMillis()}.jpg")
             .also { it.parentFile?.mkdirs() }
-        val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
-        pendingCameraUri = uri
-        takePicture.launch(uri)
+        pendingCameraUri = FileProvider.getUriForFile(this, "$packageName.provider", file)
+        takePicture.launch(pendingCameraUri!!)
     }
 
     private fun launchPipeline(uri: Uri) {
@@ -90,117 +119,182 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun LauncherScreen(
-    onScanCamera: () -> Unit,
-    onPickGallery: () -> Unit,
+fun HomeScreen(
+    context: Context,
+    refreshKey: Int,
+    onSnap: () -> Unit,
+    onGallery: () -> Unit,
+    onViewHistory: () -> Unit,
 ) {
+    val totalActions = remember(refreshKey) { ActionHistory.load(context).size }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0A0A1A), Color(0xFF0D1B4B))
-                )
-            ),
-        contentAlignment = Alignment.Center
+            .background(BG)
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(56.dp))
 
-            // Icon
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .background(Color(0xFF1428A0), CircleShape),
-                contentAlignment = Alignment.Center
+            // Wordmark
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("⚡", fontSize = 40.sp)
+                Box(Modifier.size(6.dp).background(ACCENT, CircleShape))
+                Text(
+                    text = "SnapTask",
+                    color = MUTED,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp
+                )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.weight(1f))
 
             Text(
-                text = "SnapTask",
-                fontSize = 40.sp,
+                text = "Point at anything\nwith text.",
+                color = PRIMARY,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                lineHeight = 40.sp,
+                modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(Modifier.height(10.dp))
+
             Text(
-                text = "Point. Snap. Done.",
-                fontSize = 16.sp,
-                color = Color(0xFFAAAAAA),
-                textAlign = TextAlign.Center
+                text = "Poster, receipt, business card, whiteboard — we'll handle the rest.",
+                color = MUTED,
+                fontSize = 15.sp,
+                lineHeight = 23.sp,
+                modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(56.dp))
 
-            // Feature pills
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FeaturePill("📅 Calendar")
-                FeaturePill("👤 Contacts")
-                FeaturePill("📝 Notes")
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FeaturePill("🧾 Expenses")
-                FeaturePill("🤖 AI-powered")
-            }
+            SnapButton(onClick = onSnap)
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
 
-            // Primary CTA
-            Button(
-                onClick = onScanCamera,
+            // Gallery picker — OutlinedButton so it reads as a real action
+            OutlinedButton(
+                onClick = onGallery,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1428A0)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White.copy(alpha = 0.75f)
                 )
             ) {
                 Text(
-                    text = "📷  Scan Image",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
+                    text = "📷   Use a photo instead",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
-            // Secondary CTA
-            TextButton(
-                onClick = onPickGallery,
-                modifier = Modifier.fillMaxWidth()
+            Spacer(Modifier.weight(1f))
+
+            // History CTA — only shown once there's something to see
+            AnimatedVisibility(
+                visible = totalActions > 0,
+                enter = fadeIn(tween(600))
             ) {
-                Text(
-                    text = "Or pick from gallery",
-                    color = Color(0xFF8899CC),
-                    fontSize = 15.sp
-                )
+                FilledTonalButton(
+                    onClick = onViewHistory,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = ACCENT.copy(alpha = 0.14f),
+                        contentColor = ACCENT
+                    )
+                ) {
+                    Text(
+                        text = "$totalActions action${if (totalActions == 1) "" else "s"} saved  →",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(36.dp))
         }
     }
 }
 
 @Composable
-private fun FeaturePill(label: String) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = Color(0xFF1A2040)
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            color = Color(0xFFCCDDFF),
-            fontSize = 13.sp
-        )
+private fun SnapButton(onClick: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            tween(2400, easing = EaseInOutSine),
+            RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+
+    var pressed by remember { mutableStateOf(false) }
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else pulseScale,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "press"
+    )
+
+    Box(contentAlignment = Alignment.Center) {
+        listOf(236.dp to 0.07f, 260.dp to 0.04f, 288.dp to 0.02f).forEach { (size, alpha) ->
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .scale(if (pressed) 0.92f else pulseScale)
+                    .background(ACCENT.copy(alpha = alpha), CircleShape)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(200.dp)
+                .scale(pressScale)
+                .background(PRIMARY, CircleShape)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            pressed = true
+                            tryAwaitRelease()
+                            pressed = false
+                        },
+                        onTap = { onClick() }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Snap",
+                    color = BG,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "it",
+                    color = BG.copy(alpha = 0.4f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal
+                )
+            }
+        }
     }
 }
