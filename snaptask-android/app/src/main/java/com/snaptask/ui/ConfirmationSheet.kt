@@ -154,7 +154,7 @@ private fun ReadyContent(
         }
         TextButton(
             onClick = { isEditing = !isEditing },
-            modifier = Modifier.align(Alignment.End)
+            modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.End)
         ) {
             Text(
                 text = if (isEditing) "Done editing" else "Edit details",
