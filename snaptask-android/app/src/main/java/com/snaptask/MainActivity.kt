@@ -13,17 +13,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,7 +38,7 @@ import java.io.File
 
 private val BG      = Color(0xFF0D0D14)
 private val PRIMARY = Color(0xFFFFFFFF)
-private val MUTED   = Color(0xFF6B7280)
+private val MUTED   = Color(0xFF9CA3AF)   // bumped up one stop — easier to read
 private val ACCENT  = Color(0xFF6366F1)
 
 private enum class Screen { Home, History }
@@ -137,27 +136,23 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 32.dp),
+                .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(56.dp))
 
-            // Wordmark with accent dot
+            // Wordmark
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(ACCENT, CircleShape)
-                )
+                Box(Modifier.size(6.dp).background(ACCENT, CircleShape))
                 Text(
                     text = "SnapTask",
                     color = MUTED,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.5.sp
                 )
             }
@@ -173,54 +168,62 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             Text(
-                text = "Poster, receipt, business card,\nwhiteboard — we'll handle the rest.",
+                text = "Poster, receipt, business card, whiteboard — we'll handle the rest.",
                 color = MUTED,
                 fontSize = 15.sp,
                 lineHeight = 23.sp,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(60.dp))
+            Spacer(Modifier.height(56.dp))
 
             SnapButton(onClick = onSnap)
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
 
-            TextButton(onClick = onGallery) {
+            // Gallery picker — OutlinedButton so it reads as a real action
+            OutlinedButton(
+                onClick = onGallery,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White.copy(alpha = 0.75f)
+                )
+            ) {
                 Text(
-                    text = "Use a photo instead",
-                    color = MUTED,
-                    fontSize = 14.sp
+                    text = "📷   Use a photo instead",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
             Spacer(Modifier.weight(1f))
 
+            // History CTA — only shown once there's something to see
             AnimatedVisibility(
                 visible = totalActions > 0,
                 enter = fadeIn(tween(600))
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .clickable { onViewHistory() }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                FilledTonalButton(
+                    onClick = onViewHistory,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = ACCENT.copy(alpha = 0.14f),
+                        contentColor = ACCENT
+                    )
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .background(ACCENT.copy(alpha = 0.6f), CircleShape)
-                    )
                     Text(
-                        text = "$totalActions action${if (totalActions == 1) "" else "s"} saved",
-                        color = MUTED.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
+                        text = "$totalActions action${if (totalActions == 1) "" else "s"} saved  →",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
-                    Text(text = "→", color = MUTED.copy(alpha = 0.4f), fontSize = 12.sp)
                 }
             }
 
@@ -250,7 +253,6 @@ private fun SnapButton(onClick: () -> Unit) {
     )
 
     Box(contentAlignment = Alignment.Center) {
-        // Glow rings — scale with pulse so they breathe together
         listOf(236.dp to 0.07f, 260.dp to 0.04f, 288.dp to 0.02f).forEach { (size, alpha) ->
             Box(
                 modifier = Modifier

@@ -1,6 +1,7 @@
 package com.snaptask.ui
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,7 +21,7 @@ import java.util.Calendar
 
 private val BG      = Color(0xFF0D0D14)
 private val SURFACE = Color(0xFF13131C)
-private val MUTED   = Color(0xFF6B7280)
+private val MUTED   = Color(0xFF9CA3AF)
 private val DIVIDER = Color(0xFF1E1E2A)
 
 private data class Section(val header: String, val blips: List<ActionHistory.Blip>)
@@ -44,30 +45,40 @@ fun HistoryScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            TextButton(onClick = onBack) {
-                Text("← Back", color = MUTED, fontSize = 14.sp)
+            OutlinedButton(
+                onClick = onBack,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text("← Back", fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
+
             Text(
                 text = "History",
                 color = Color.White,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
             )
+
             if (blips.isNotEmpty()) {
-                TextButton(onClick = {
-                    ActionHistory.clear(context)
-                    blips = emptyList()
-                    onClear()
-                }) {
-                    Text("Clear", color = MUTED, fontSize = 14.sp)
+                TextButton(
+                    onClick = {
+                        ActionHistory.clear(context)
+                        blips = emptyList()
+                        onClear()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
+                ) {
+                    Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             } else {
-                Spacer(Modifier.width(72.dp))
+                Spacer(Modifier.width(64.dp))
             }
         }
 
@@ -78,8 +89,7 @@ fun HistoryScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
             ) {
                 sections.forEach { section ->
                     item {
@@ -87,14 +97,14 @@ fun HistoryScreen(
                             text = section.header,
                             color = MUTED,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 0.8.sp,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(top = 20.dp, bottom = 10.dp, start = 4.dp)
                         )
                     }
                     items(section.blips) { blip ->
                         HistoryRow(blip)
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -110,22 +120,22 @@ private fun EmptyState() {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(40.dp)
         ) {
-            Text("📋", fontSize = 48.sp)
+            Text("📋", fontSize = 52.sp)
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Nothing here yet",
                 color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
             )
             Text(
                 text = "Actions you execute will appear here — calendar events, contacts, notes, and expenses.",
                 color = MUTED,
                 fontSize = 14.sp,
-                lineHeight = 20.sp,
+                lineHeight = 21.sp,
                 textAlign = TextAlign.Center
             )
         }
@@ -134,103 +144,107 @@ private fun EmptyState() {
 
 @Composable
 private fun HistoryRow(blip: ActionHistory.Blip) {
-    val accentColor = when (blip.type) {
-        "create_calendar_event" -> Color(0xFF3B82F6)
-        "create_contact"        -> Color(0xFF22C55E)
-        "create_note"           -> Color(0xFFF97316)
-        "log_expense"           -> Color(0xFFA855F7)
-        else                    -> Color(0xFF6B7280)
-    }
-    val typeLabel = when (blip.type) {
-        "create_calendar_event" -> "Event"
-        "create_contact"        -> "Contact"
-        "create_note"           -> "Note"
-        "log_expense"           -> "Expense"
-        else                    -> blip.type.replace('_', ' ')
+    val (accentColor, typeLabel, icon) = when (blip.type) {
+        "create_calendar_event" -> Triple(Color(0xFF3B82F6), "Calendar Event", "📅")
+        "create_contact"        -> Triple(Color(0xFF22C55E), "Contact",        "👤")
+        "create_note"           -> Triple(Color(0xFFF97316), "Note",           "📝")
+        "log_expense"           -> Triple(Color(0xFFA855F7), "Expense",        "💳")
+        else                    -> Triple(Color(0xFF6B7280), blip.type.replace('_', ' '), "•")
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(SURFACE, RoundedCornerShape(10.dp)),
+            .background(SURFACE, RoundedCornerShape(12.dp)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Left accent bar
         Box(
             modifier = Modifier
-                .width(3.dp)
-                .height(56.dp)
+                .width(4.dp)
+                .heightIn(min = 64.dp)
+                .fillMaxHeight()
                 .background(
                     accentColor,
-                    RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
+                    RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
                 )
         )
+
+        // Icon
+        Box(
+            modifier = Modifier
+                .padding(start = 14.dp)
+                .size(40.dp)
+                .background(accentColor.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(icon, fontSize = 18.sp)
+        }
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = blip.label,
                 color = Color.White,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                lineHeight = 19.sp
             )
             Text(
                 text = typeLabel,
-                color = accentColor.copy(alpha = 0.8f),
-                fontSize = 11.sp,
+                color = accentColor,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
         }
 
-        Text(
-            text = relativeTime(blip.timestamp),
-            color = MUTED,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(end = 14.dp)
-        )
+        Column(
+            modifier = Modifier.padding(end = 14.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = relativeTime(blip.timestamp),
+                color = MUTED,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
 private fun groupByDate(blips: List<ActionHistory.Blip>): List<Section> {
     if (blips.isEmpty()) return emptyList()
-
-    val now = System.currentTimeMillis()
     val cal = Calendar.getInstance()
-
-    cal.set(Calendar.HOUR_OF_DAY, 0)
-    cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0)
-    cal.set(Calendar.MILLISECOND, 0)
-    val todayStart = cal.timeInMillis
-
+    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+    val todayStart     = cal.timeInMillis
     val yesterdayStart = todayStart - 86_400_000L
-    val weekStart = todayStart - 6 * 86_400_000L
-
-    val today = blips.filter { it.timestamp >= todayStart }
-    val yesterday = blips.filter { it.timestamp in yesterdayStart until todayStart }
-    val thisWeek = blips.filter { it.timestamp in weekStart until yesterdayStart }
-    val older = blips.filter { it.timestamp < weekStart }
+    val weekStart      = todayStart - 6 * 86_400_000L
 
     return buildList {
-        if (today.isNotEmpty()) add(Section("TODAY", today))
-        if (yesterday.isNotEmpty()) add(Section("YESTERDAY", yesterday))
-        if (thisWeek.isNotEmpty()) add(Section("THIS WEEK", thisWeek))
-        if (older.isNotEmpty()) add(Section("EARLIER", older))
+        blips.filter { it.timestamp >= todayStart }.takeIf { it.isNotEmpty() }
+            ?.let { add(Section("TODAY", it)) }
+        blips.filter { it.timestamp in yesterdayStart until todayStart }.takeIf { it.isNotEmpty() }
+            ?.let { add(Section("YESTERDAY", it)) }
+        blips.filter { it.timestamp in weekStart until yesterdayStart }.takeIf { it.isNotEmpty() }
+            ?.let { add(Section("THIS WEEK", it)) }
+        blips.filter { it.timestamp < weekStart }.takeIf { it.isNotEmpty() }
+            ?.let { add(Section("EARLIER", it)) }
     }
 }
 
 private fun relativeTime(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
     return when {
-        diff < 60_000L      -> "now"
-        diff < 3_600_000L   -> "${diff / 60_000}m"
-        diff < 86_400_000L  -> "${diff / 3_600_000}h"
-        diff < 604_800_000L -> "${diff / 86_400_000}d"
-        else                -> "${diff / 604_800_000}w"
+        diff < 60_000L      -> "just now"
+        diff < 3_600_000L   -> "${diff / 60_000}m ago"
+        diff < 86_400_000L  -> "${diff / 3_600_000}h ago"
+        diff < 604_800_000L -> "${diff / 86_400_000}d ago"
+        else                -> "${diff / 604_800_000}w ago"
     }
 }
