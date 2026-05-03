@@ -81,6 +81,8 @@ class ShareReceiverActivity : ComponentActivity() {
 
     private suspend fun processImage(uri: Uri): SnapTaskResponse {
         val rawText = ocrProcessor.process(this, uri)
+        if (rawText.trim().length < 10)
+            throw IllegalStateException("NO_TEXT: Not enough readable text in this image")
         val entities = entityExtractor.annotate(rawText)
         return openClawClient.process(rawText, entities)
     }
