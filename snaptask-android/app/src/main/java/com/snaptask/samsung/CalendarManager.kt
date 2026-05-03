@@ -1,68 +1,60 @@
 package com.snaptask.samsung
 
-import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.provider.CalendarContract
+import android.util.Log
 import java.time.Instant
-import java.util.TimeZone
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+private const val TAG = "CalendarManager"
 
 class CalendarManager(private val context: Context) {
 
     fun create(params: Map<String, Any>) {
-        val title = params["title"] as? String ?: return
-        val dateTime = params["dateTime"] as? String ?: return
-        val location = params["location"] as? String
-        val reminderMinutes = (params["reminderMinutes"] as? Double)?.toInt() ?: 60
+        Log.d(TAG, "create() called with params: $params")
 
-        val startMs = Instant.parse(dateTime).toEpochMilli()
+        val title = params["title"] as? String
+        val dateTime = params["dateTime"] as? String
+
+        if (title == null) { Log.e(TAG, "Missing title"); return }
+        if (dateTime == null) { Log.e(TAG, "Missing dateTime"); return }
+
+        val startMs = runCatching { Instant.parse(dateTime).toEpochMilli() }
+            .getOrElse {
+                runCatching {
+                    LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                }.getOrElse {
+                    Log.e(TAG, "Failed to parse dateTime: $dateTime", it)
+                    return
+                }
+            }
+
         val endMs = (params["endDateTime"] as? String)
             ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
             ?: (startMs + 60 * 60 * 1000)
 
-        val calendarId = getDefaultCalendarId() ?: return
-
-        val values = ContentValues().apply {
-            put(CalendarContract.Events.TITLE, title)
-            put(CalendarContract.Events.DTSTART, startMs)
-            put(CalendarContract.Events.DTEND, endMs)
-            put(CalendarContract.Events.CALENDAR_ID, calendarId)
-            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-            location?.let { put(CalendarContract.Events.EVENT_LOCATION, it) }
+        val location = params["location"] as? String
+        val reminderMinutes = when (val r = params["reminderMinutes"]) {
+            is Double -> r.toInt()
+            is Int -> r
+            is Long -> r.toInt()
+            else -> 60
         }
 
-        val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            ?: return
+        val intent = Intent(Intent.ACTION_INSERT)
+            .setData(CalendarContract.Events.CONTENT_URI)
+            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMs)
+            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMs)
+            .putExtra(CalendarContract.Events.TITLE, title)
+            .putExtra(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY)
+            .putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, false)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val eventId = eventUri.lastPathSegment?.toLongOrNull() ?: return
-        val reminderValues = ContentValues().apply {
-            put(CalendarContract.Reminders.EVENT_ID, eventId)
-            put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
-        }
-        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-    }
+        location?.let { intent.putExtra(CalendarContract.Events.EVENT_LOCATION, it) }
 
-    private fun getDefaultCalendarId(): Long? {
-        val projection = arrayOf(CalendarContract.Calendars._ID)
-
-        // Prefer the primary calendar (IS_PRIMARY = 1)
-        context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI,
-            projection,
-            "${CalendarContract.Calendars.IS_PRIMARY} = 1",
-            null,
-            null
-        )?.use { if (it.moveToFirst()) return it.getLong(0) }
-
-        // Fall back to any visible calendar
-        context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI,
-            projection,
-            "${CalendarContract.Calendars.VISIBLE} = 1",
-            null,
-            null
-        )?.use { if (it.moveToFirst()) return it.getLong(0) }
-
-        return null
+        Log.d(TAG, "Launching Calendar intent for: $title at $dateTime")
+        context.startActivity(intent)
     }
 }

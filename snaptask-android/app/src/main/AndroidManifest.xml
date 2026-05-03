@@ -6,17 +6,28 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
-        android:theme="@style/Theme.SnapTask">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.SnapTask"
+        android:networkSecurityConfig="@xml/network_security_config">
 
-        <!--
-            ShareReceiverActivity is a transparent bottom-sheet activity.
-            It appears on top of the caller (Samsung Camera, Gallery, etc.)
-            and dismisses itself after Execute or Cancel.
-        -->
+        <!-- Launcher entry point -->
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.SnapTask.Launcher"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Share-target: receives images from Camera, Gallery, etc. -->
         <activity
             android:name=".ShareReceiverActivity"
             android:theme="@style/Theme.SnapTask.BottomSheet"
@@ -27,6 +38,17 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+
+        <!-- FileProvider for passing camera image URIs to the pipeline -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 
