@@ -17,6 +17,8 @@ if (!process.env.GEMINI_API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const MODEL = 'gemini-2.0-flash';
+
 function loadSkills() {
   const skills = {};
   for (const name of fs.readdirSync(SKILLS_DIR)) {
@@ -85,7 +87,7 @@ app.post('/process', async (req, res) => {
   let llmResult;
   try {
     const result = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: MODEL,
       contents: buildPrompt(rawText, entities),
       config: { responseMimeType: 'application/json' },
     });
@@ -124,9 +126,9 @@ app.post('/process', async (req, res) => {
   res.json(response);
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: 'gemini-2.0-flash' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: MODEL }));
 
 app.listen(PORT, () => {
   console.log(`OpenClaw Gateway listening on http://localhost:${PORT}`);
-  console.log('Using Gemini 2.0 Flash');
+  console.log(`Using model: ${MODEL}`);
 });
