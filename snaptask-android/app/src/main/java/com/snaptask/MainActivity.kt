@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -113,6 +116,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class Capability(val emoji: String, val label: String, val color: Color)
+
+private val capabilities = listOf(
+    Capability("📅", "Calendar",  Color(0xFF3B82F6)),
+    Capability("👤", "Contacts",  Color(0xFF22C55E)),
+    Capability("📝", "Notes",     Color(0xFFF97316)),
+    Capability("💳", "Expenses",  Color(0xFFA855F7)),
+)
+
 @Composable
 fun HomeScreen(
     context: Context,
@@ -128,19 +140,20 @@ fun HomeScreen(
             .fillMaxSize()
             .background(ColorBg)
     ) {
-        // Radial gradient backdrop behind button
+        // Ambient glow behind snap button
+        val pulse = rememberInfiniteTransition(label = "glow")
+        val glowAlpha by pulse.animateFloat(
+            initialValue = 0.10f, targetValue = 0.20f,
+            animationSpec = infiniteRepeatable(tween(2800, easing = EaseInOutSine), RepeatMode.Reverse),
+            label = "alpha"
+        )
         Box(
             modifier = Modifier
-                .size(500.dp)
+                .size(480.dp)
                 .align(Alignment.Center)
-                .offset(y = 40.dp)
+                .offset(y = 60.dp)
                 .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            ColorAccent.copy(alpha = 0.12f),
-                            Color.Transparent
-                        )
-                    ),
+                    Brush.radialGradient(listOf(ColorAccent.copy(alpha = glowAlpha), Color.Transparent)),
                     CircleShape
                 )
         )
@@ -149,12 +162,12 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
-                .padding(horizontal = 28.dp),
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Top bar
+            // ── Top bar ──────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -166,95 +179,138 @@ fun HomeScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .background(ColorAccent, RoundedCornerShape(8.dp)),
+                            .size(32.dp)
+                            .background(
+                                Brush.linearGradient(listOf(ColorAccent, Color(0xFF4338CA))),
+                                RoundedCornerShape(9.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("S", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                        Text("S", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                     }
-                    Text(
-                        text = "SnapTask",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.2.sp
-                    )
+                    Column {
+                        Text("SnapTask", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Samsung Prism", color = ColorMuted, fontSize = 10.sp, letterSpacing = 0.3.sp)
+                    }
                 }
-                Box(
-                    modifier = Modifier
-                        .background(ColorSurfaceHigh, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+
+                AnimatedVisibility(
+                    visible = totalActions > 0,
+                    enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { -it }
                 ) {
-                    Text(
-                        text = "Samsung Prism",
-                        color = ColorMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(ColorAccent.copy(alpha = 0.15f))
+                            .border(1.dp, ColorAccent.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("🕐", fontSize = 12.sp)
+                            Text(
+                                "$totalActions saved",
+                                color = ColorAccentLight,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(Modifier.weight(0.6f))
+            Spacer(Modifier.weight(0.5f))
+
+            // ── Headline ─────────────────────────────────────────────
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Snap it.",
+                    color = Color.White,
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 48.sp,
+                    letterSpacing = (-1).sp
+                )
+                Text(
+                    text = "AI does the rest.",
+                    color = ColorAccentLight,
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 48.sp,
+                    letterSpacing = (-1).sp
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "Point at anything\nwith text.",
-                color = Color.White,
-                fontSize = 36.sp,
-                fontWeight = FontWeight.ExtraBold,
-                lineHeight = 44.sp,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = "Business cards, receipts, flyers, whiteboards\n— snap once, done.",
+                text = "Point at any text — card, flyer, receipt, or\nwhiteboard — and watch it become an action.",
                 color = ColorMuted,
-                fontSize = 15.sp,
-                lineHeight = 23.sp,
+                fontSize = 14.sp,
+                lineHeight = 22.sp,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(52.dp))
+            Spacer(Modifier.height(20.dp))
 
+            // ── Capability chips ─────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                capabilities.forEach { cap ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(cap.color.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+                            .border(1.dp, cap.color.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(cap.emoji, fontSize = 18.sp)
+                            Text(cap.label, color = cap.color, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.2.sp)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.weight(0.8f))
+
+            // ── Snap button ──────────────────────────────────────────
             SnapButton(onClick = onSnap)
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
 
-            OutlinedButton(
-                onClick = onGallery,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White.copy(alpha = 0.8f))
+            // ── Secondary actions ────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("📷   Choose from gallery", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            AnimatedVisibility(
-                visible = totalActions > 0,
-                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it }
-            ) {
-                FilledTonalButton(
-                    onClick = onViewHistory,
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = ColorAccent.copy(alpha = 0.15f),
-                        contentColor   = ColorAccentLight
-                    )
+                OutlinedButton(
+                    onClick = onGallery,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ColorBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White.copy(alpha = 0.75f))
                 ) {
-                    Text(
-                        text = "$totalActions action${if (totalActions == 1) "" else "s"} saved  →",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("📷  Gallery", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                OutlinedButton(
+                    onClick = onViewHistory,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ColorBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White.copy(alpha = 0.75f))
+                ) {
+                    Text("🕐  History", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -263,36 +319,51 @@ fun HomeScreen(
 private fun SnapButton(onClick: () -> Unit) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulse.animateFloat(
-        initialValue = 1.0f, targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(tween(2200, easing = EaseInOutSine), RepeatMode.Reverse),
+        initialValue = 1.0f, targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = EaseInOutSine), RepeatMode.Reverse),
         label = "scale"
     )
     var pressed by remember { mutableStateOf(false) }
     val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.91f else pulseScale,
+        targetValue = if (pressed) 0.90f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "press"
     )
 
     Box(contentAlignment = Alignment.Center) {
-        // Glow rings
-        listOf(230.dp to 0.09f, 256.dp to 0.05f, 284.dp to 0.025f).forEach { (size, alpha) ->
+        // Pulsing glow rings
+        listOf(180.dp to 0.10f, 210.dp to 0.06f, 240.dp to 0.03f).forEach { (size, alpha) ->
             Box(
                 modifier = Modifier
                     .size(size)
-                    .scale(if (pressed) 0.91f else pulseScale)
+                    .scale(pulseScale)
                     .background(ColorAccent.copy(alpha = alpha), CircleShape)
             )
         }
 
+        // Outer shutter ring
         Box(
             modifier = Modifier
-                .size(200.dp)
+                .size(148.dp)
+                .scale(pressScale)
+                .border(2.dp, ColorAccent.copy(alpha = 0.5f), CircleShape)
+        )
+
+        // Inner shutter ring
+        Box(
+            modifier = Modifier
+                .size(136.dp)
+                .scale(pressScale)
+                .border(1.dp, ColorAccentLight.copy(alpha = 0.25f), CircleShape)
+        )
+
+        // Main button
+        Box(
+            modifier = Modifier
+                .size(122.dp)
                 .scale(pressScale)
                 .background(
-                    Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFFFF), Color(0xFFE8E8FF))
-                    ),
+                    Brush.radialGradient(listOf(Color.White, Color(0xFFDDE0FF))),
                     CircleShape
                 )
                 .pointerInput(Unit) {
@@ -303,9 +374,15 @@ private fun SnapButton(onClick: () -> Unit) {
                 },
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Snap", color = ColorBg, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                Text("it", color = ColorBg.copy(alpha = 0.35f), fontSize = 14.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("📸", fontSize = 32.sp)
+                Text(
+                    "SNAP",
+                    color = ColorBg,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp
+                )
             }
         }
     }
