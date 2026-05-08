@@ -21,7 +21,7 @@ SnapTask closes that gap with a three-step pipeline:
         │
         ▼
 [ML Kit OCR]  ──── rawText ────▶  [OpenClaw Server]
-  (on-device)                      Gemini 2.0 Flash
+  (on-device)                      Llama 3.3 70B (Groq)
                                    classifies intent +
                                    extracts parameters
         │
@@ -46,8 +46,9 @@ One photo. Zero re-typing. A single confirmation tap.
 |---|---|
 | Camera + gallery launcher | ✅ |
 | On-device OCR (ML Kit Text Recognition) | ✅ |
-| Gemini 2.0 Flash intent classification | ✅ |
+| Llama 3.3 70B intent classification (via Groq) | ✅ |
 | **Multi-action from one image** (e.g. business card → contact + calendar event) | ✅ |
+| Swipeable 3-page onboarding (shown every launch) | ✅ |
 | Confirmation sheet with preview before executing | ✅ |
 | Confidence warning banner (< 60% confidence) | ✅ |
 | Editable action fields before confirming | ✅ |
@@ -78,7 +79,7 @@ One photo. Zero re-typing. A single confirmation tap.
 | Layer | Technology |
 |---|---|
 | Runtime | Node.js 18+ |
-| LLM | Gemini 2.0 Flash (`@google/genai`) |
+| LLM | Llama 3.3 70B via Groq (`groq-sdk`) — free, no billing |
 | Skill system | SKILL.md + `index.js` per integration |
 | Transport | HTTP/JSON on port 3000 |
 
@@ -103,6 +104,7 @@ SnapTask/
 │       │   ├── ContactsManager.kt
 │       │   └── NotesManager.kt
 │       └── ui/
+│           ├── OnboardingScreen.kt     # 3-page swipeable onboarding
 │           ├── ConfirmationSheet.kt    # Bottom sheet: loading / ready / error
 │           ├── HistoryScreen.kt        # Date-grouped action history
 │           └── IntentBadge.kt
@@ -129,7 +131,7 @@ SnapTask/
 |---|---|
 | Android Studio | Hedgehog or newer |
 | Node.js | 18+ |
-| A Gemini API key | [Get one free at Google AI Studio](https://aistudio.google.com/app/apikey) |
+| A Groq API key | [Get one free at console.groq.com](https://console.groq.com) — no billing required |
 
 ---
 
@@ -141,8 +143,8 @@ npm install
 
 # Create your .env from the example
 cp .env.example .env
-# Edit .env and paste your Gemini API key:
-# GEMINI_API_KEY=your_key_here
+# Edit .env and paste your Groq API key:
+# GROQ_API_KEY=gsk_...
 
 node server.js
 # → OpenClaw Gateway listening on http://localhost:3000
@@ -182,8 +184,8 @@ Make sure your phone and Mac are on the **same Wi-Fi network**.
 ## Usage
 
 ### Snapping from the app
-1. Open **SnapTask**.
-2. Tap the large **Snap it** button to open the camera, or **Use a photo instead** to pick from gallery.
+1. Open **SnapTask** — swipe through the onboarding and tap **Get Started**.
+2. Tap the **📸 SNAP** button to open the camera, or **📷 Gallery** to pick an image.
 3. Capture or select an image with readable text.
 4. The confirmation sheet slides up — review the detected action(s).
 5. Optionally tap **Edit details** to adjust any fields.
@@ -195,8 +197,8 @@ Make sure your phone and Mac are on the **same Wi-Fi network**.
 3. Same confirmation flow as above.
 
 ### Viewing history
-- The home screen footer shows **"N actions saved →"** once you've executed at least one action.
-- Tap it to open the **History** screen — actions grouped by Today / Yesterday / This Week / Earlier.
+- Tap **🕐 History** on the home screen to open the history screen.
+- Actions are grouped by Today / Yesterday / This Week / Earlier.
 - Tap **Clear** to wipe the history.
 
 ---
@@ -215,7 +217,7 @@ Make sure your phone and Mac are on the **same Wi-Fi network**.
 
 ## How Multi-Action Works
 
-The Gemini prompt explicitly instructs the model to return **all applicable actions** for the image, not just one. A single business card can produce:
+The Llama prompt explicitly instructs the model to return **all applicable actions** for the image, not just one. A single business card can produce:
 
 ```json
 {
@@ -235,7 +237,7 @@ Both actions appear in the confirmation sheet and execute together on a single t
 1. Photo stays on device as a local file.
 2. ML Kit reads pixels from the URI — returns text only, the image is never forwarded.
 3. Only `rawText` is sent over local Wi-Fi to your OpenClaw server — never to any third-party.
-4. Gemini processes the text and returns structured JSON — no image data involved.
+4. Llama 3.3 on Groq processes the text and returns structured JSON — no image data involved.
 5. The Android app writes directly to Calendar / Contacts / Notes — fully local.
 
 **The raw image never leaves your device.**
