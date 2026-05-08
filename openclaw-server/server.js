@@ -17,6 +17,8 @@ if (!process.env.GEMINI_API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const MODEL = 'gemini-2.0-flash';
+
 function loadSkills() {
   const skills = {};
   for (const name of fs.readdirSync(SKILLS_DIR)) {
@@ -41,7 +43,12 @@ function buildPrompt(rawText, entities) {
     .map(([name, s]) => `### Skill: ${name}\n${s.description}`)
     .join('\n\n');
 
-  return `You are an intent classifier for the SnapTask app. Given OCR text from a phone camera image, identify what the user wants to do and extract parameters for the best matching skill.
+  return `You are an intent classifier for the SnapTask app. Given OCR text from a phone camera image, identify ALL useful actions the user would want to take and extract parameters for each matching skill.
+
+IMPORTANT: A single image can trigger MULTIPLE actions. For example:
+- A business card → create a contact AND create a calendar event for follow-up
+- An event poster with a venue address → create a calendar event AND save the organiser as a contact
+- A receipt → log the expense AND create a note with the details
 
 Available skills:
 ${skillDocs}
@@ -54,14 +61,19 @@ ${entities && entities.length > 0 ? `\nExtracted entities: ${JSON.stringify(enti
 
 Respond with valid JSON in this exact format:
 {
-  "intent": "<short description of what this is>",
-  "summary": "<one sentence summary of the planned action>",
-  "skill": "<skill name or null if no skill matches>",
-  "params": {},
-  "confidence": 0.0
+  "intent": "<short label: event | contact | expense | note | mixed>",
+  "summary": "<one sentence describing all planned actions>",
+  "confidence": 0.0,
+  "actions": [
+    { "skill": "<skill name>", "params": {} }
+  ]
 }
 
-If no skill matches, set skill to null and params to {}.`;
+Rules:
+- "actions" must be an array (can have 1 or more items).
+- Only include a skill if the text clearly provides the required parameters for it.
+- If nothing matches, return "actions": [].
+- Do NOT invent data that isn't in the text.`;
 }
 
 app.post('/process', async (req, res) => {
@@ -75,7 +87,7 @@ app.post('/process', async (req, res) => {
   let llmResult;
   try {
     const result = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: MODEL,
       contents: buildPrompt(rawText, entities),
       config: { responseMimeType: 'application/json' },
     });
@@ -86,13 +98,18 @@ app.post('/process', async (req, res) => {
     return res.status(502).json({ error: `LLM error: ${err.message}` });
   }
 
-  const { intent, summary, skill: skillName, params, confidence } = llmResult;
+  const { intent, summary, confidence, actions: llmActions = [] } = llmResult;
 
-  let actions = [];
-  if (skillName && skills[skillName]) {
+  const actions = [];
+  for (const { skill: skillName, params } of llmActions) {
+    if (!skillName || !skills[skillName]) {
+      console.warn(`[Skill not found: ${skillName}]`);
+      continue;
+    }
     try {
       const action = await skills[skillName].execute(params);
-      actions = [action];
+      actions.push(action);
+      console.log(`[Skill ok: ${skillName}]`);
     } catch (err) {
       console.error(`[Skill error: ${skillName}]`, err.message);
     }
@@ -109,9 +126,9 @@ app.post('/process', async (req, res) => {
   res.json(response);
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: 'gemini-2.0-flash' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', skills: Object.keys(skills), model: MODEL }));
 
 app.listen(PORT, () => {
   console.log(`OpenClaw Gateway listening on http://localhost:${PORT}`);
-  console.log('Using Gemini 2.0 Flash');
+  console.log(`Using model: ${MODEL}`);
 });
