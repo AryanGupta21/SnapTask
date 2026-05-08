@@ -9,173 +9,170 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-private val BG     = Color(0xFF0D0D14)
-private val ACCENT = Color(0xFF6366F1)
-private val MUTED  = Color(0xFF9CA3AF)
-private val CARD   = Color(0xFF13131C)
+import com.snaptask.ui.theme.*
 
 @Composable
 fun OnboardingScreen(onGetStarted: () -> Unit) {
-
-    val infiniteTransition = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.06f,
-        targetValue  = 0.13f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = EaseInOutSine), RepeatMode.Reverse),
-        label = "glowAlpha"
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val glowScale by pulse.animateFloat(
+        initialValue = 0.9f, targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = EaseInOutSine), RepeatMode.Reverse),
+        label = "glow"
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BG)
+            .background(ColorBg)
     ) {
-        // Ambient glow top-center
+        // Top glow
         Box(
             modifier = Modifier
-                .size(400.dp)
-                .offset(y = (-80).dp)
-                .background(ACCENT.copy(alpha = glowAlpha), CircleShape)
+                .size(360.dp)
+                .scale(glowScale)
                 .align(Alignment.TopCenter)
+                .offset(y = (-100).dp)
+                .background(
+                    Brush.radialGradient(listOf(ColorAccent.copy(alpha = 0.18f), Color.Transparent)),
+                    CircleShape
+                )
         )
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
                 .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(72.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // Wordmark
+            // Logo
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(Modifier.size(7.dp).background(ACCENT, CircleShape))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .background(ColorAccent, RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("S", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                }
                 Text(
                     text = "SnapTask",
                     color = Color.White,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
-                )
-            }
-
-            Spacer(Modifier.height(52.dp))
-
-            Text(
-                text = "Your camera,\nnow with superpowers.",
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 38.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = "Point at anything with text and watch it\nturn into a real action — instantly.",
-                color = MUTED,
-                fontSize = 15.sp,
-                lineHeight = 23.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(48.dp))
-
-            // Feature cards
-            FeatureRow(
-                icon  = "📸",
-                title = "Snap anything",
-                body  = "Business cards, event flyers, receipts, whiteboards — if it has text, SnapTask reads it."
-            )
-            Spacer(Modifier.height(12.dp))
-            FeatureRow(
-                icon  = "🤖",
-                title = "AI understands it",
-                body  = "Gemini classifies the intent and pulls out every relevant detail automatically."
-            )
-            Spacer(Modifier.height(12.dp))
-            FeatureRow(
-                icon  = "✅",
-                title = "Samsung acts on it",
-                body  = "Calendar events, contacts, notes, and expenses — created in one tap."
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            Button(
-                onClick = onGetStarted,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor   = BG
-                )
-            ) {
-                Text(
-                    text = "Get Started",
-                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(44.dp))
+
+            // Hero text
+            Text(
+                text = "Your camera,\nnow with\nsuperpowers.",
+                color = Color.White,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.ExtraBold,
+                lineHeight = 42.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "🔒  Your images never leave your device.",
-                color = MUTED.copy(alpha = 0.6f),
+                text = "Snap a photo. AI reads it.\nSamsung acts on it.",
+                color = ColorMuted,
+                fontSize = 15.sp,
+                lineHeight = 24.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // Feature cards
+            FeatureCard(
+                icon    = "📸",
+                color   = Color(0xFF3B82F6),
+                title   = "Snap anything",
+                body    = "Business cards, event flyers, receipts, whiteboards — SnapTask reads them all."
+            )
+            Spacer(Modifier.height(10.dp))
+            FeatureCard(
+                icon    = "🤖",
+                color   = ColorAccent,
+                title   = "Gemini understands it",
+                body    = "AI extracts every useful detail and figures out exactly what to do with it."
+            )
+            Spacer(Modifier.height(10.dp))
+            FeatureCard(
+                icon    = "⚡",
+                color   = Color(0xFF22C55E),
+                title   = "Samsung executes it",
+                body    = "Calendar events, contacts, notes, expenses — created in one tap."
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            // CTA
+            Button(
+                onClick = onGetStarted,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor   = ColorBg
+                )
+            ) {
+                Text("Get Started  →", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                text = "🔒  Images never leave your device",
+                color = ColorMuted.copy(alpha = 0.55f),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(28.dp))
         }
     }
 }
 
 @Composable
-private fun FeatureRow(icon: String, title: String, body: String) {
+private fun FeatureCard(icon: String, color: Color, title: String, body: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(CARD, RoundedCornerShape(14.dp))
+            .background(ColorSurface, RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(ACCENT.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                .size(52.dp)
+                .background(color.copy(alpha = 0.13f), RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text(icon, fontSize = 22.sp)
+            Text(icon, fontSize = 24.sp)
         }
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                text  = title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text  = body,
-                color = MUTED,
-                fontSize = 12.sp,
-                lineHeight = 18.sp
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(body, color = ColorMuted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
 }

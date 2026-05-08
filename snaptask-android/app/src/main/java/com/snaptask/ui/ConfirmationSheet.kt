@@ -13,10 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.snaptask.network.models.PlannedAction
 import com.snaptask.network.models.SnapTaskResponse
+import com.snaptask.ui.theme.*
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -57,22 +59,27 @@ fun ConfirmationSheet(
     var state: SheetState by remember { mutableStateOf(SheetState.Loading) }
 
     LaunchedEffect(Unit) {
-        state = try {
-            SheetState.Ready(onLoad())
-        } catch (e: Exception) {
-            errorStateFrom(e)
-        }
+        state = try { SheetState.Ready(onLoad()) } catch (e: Exception) { errorStateFrom(e) }
     }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        onDismissRequest  = onDismiss,
+        sheetState        = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor    = ColorSurface,
+        contentColor      = Color.White,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(2.dp))
+            )
+        }
     ) {
-        // Animated transition between Loading → Ready/Error
         AnimatedContent(
             targetState = state,
             transitionSpec = {
-                (fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 4 })
+                (fadeIn(tween(280)) + slideInVertically(tween(280)) { it / 5 })
                     .togetherWith(fadeOut(tween(150)))
             },
             label = "sheetState"
@@ -80,8 +87,8 @@ fun ConfirmationSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 40.dp),
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 36.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (s) {
@@ -101,21 +108,17 @@ private fun LoadingContent() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 32.dp),
+            .padding(vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        CircularProgressIndicator(strokeWidth = 3.dp)
+        CircularProgressIndicator(color = ColorAccentLight, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
+        Text("Analysing your image…", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            text = "Reading your image…",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "OCR  →  AI classification  →  action",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 0.3.sp
+            text = "OCR  ›  AI classification  ›  action",
+            color = ColorMuted,
+            fontSize = 13.sp,
+            letterSpacing = 0.5.sp
         )
     }
 }
@@ -128,7 +131,7 @@ private fun ReadyContent(
     onExecute: (SnapTaskResponse) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val lowConfidence = response.confidence in 0.0f..0.59f
+    val lowConfidence = response.confidence < 0.6f
     var isEditing by remember { mutableStateOf(false) }
 
     val editedParams = remember(response) {
@@ -141,58 +144,54 @@ private fun ReadyContent(
         }
     }
 
-    // Header
+    // Header pill row
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 4.dp)
     ) {
         IntentBadge(intent = response.intent)
-        Text(
-            text = "${(response.confidence * 100).toInt()}%",
-            fontSize = 12.sp,
-            color = if (lowConfidence) Color(0xFFD97706) else Color(0xFF22C55E),
-            fontWeight = FontWeight.SemiBold
-        )
+        Spacer(Modifier.weight(1f))
+        val pct = (response.confidence * 100).toInt()
+        val confColor = if (lowConfidence) Color(0xFFF59E0B) else Color(0xFF22C55E)
+        Box(
+            modifier = Modifier
+                .background(confColor.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text("$pct% confident", color = confColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
     }
 
     Text(
         text = response.summary,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.Bold,
         lineHeight = 24.sp
     )
 
-    if (lowConfidence) {
-        ConfidenceWarning(confidence = response.confidence)
-    }
+    if (lowConfidence) ConfidenceWarning(response.confidence)
 
-    // Actions
     if (response.actions.isNotEmpty()) {
-        Divider(color = MaterialTheme.colorScheme.outlineVariant)
+        Divider(color = ColorBorder)
 
-        // Single-action gets a larger card; multiple get compact rows
         if (response.actions.size == 1) {
-            val action = response.actions[0]
             AnimatedContent(
                 targetState = isEditing,
                 transitionSpec = { fadeIn(tween(200)).togetherWith(fadeOut(tween(150))) },
-                label = "singleAction"
+                label = "editToggle"
             ) { editing ->
-                if (editing) {
-                    EditableActionFields(action, editedParams[0])
-                } else {
-                    SingleActionCard(action)
-                }
+                if (editing) EditableActionFields(response.actions[0], editedParams[0])
+                else SingleActionCard(response.actions[0])
             }
         } else {
-            response.actions.forEachIndexed { i, action ->
-                AnimatedVisibility(
-                    visible = isEditing,
-                    enter = expandVertically(),
-                    exit  = shrinkVertically()
-                ) { EditableActionFields(action, editedParams[i]) }
-                AnimatedVisibility(visible = !isEditing) {
-                    ActionRow(action)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                response.actions.forEachIndexed { i, action ->
+                    AnimatedVisibility(isEditing, enter = expandVertically(), exit = shrinkVertically()) {
+                        EditableActionFields(action, editedParams[i])
+                    }
+                    AnimatedVisibility(!isEditing) { MultiActionRow(action) }
                 }
             }
         }
@@ -202,74 +201,97 @@ private fun ReadyContent(
             modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.End)
         ) {
             Text(
-                text = if (isEditing) "Done editing" else "Edit details",
-                fontSize = 13.sp
+                text = if (isEditing) "✓  Done editing" else "✏  Edit details",
+                color = ColorAccentLight,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }
 
-    // Buttons
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        modifier = Modifier.fillMaxWidth()
     ) {
-        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-            Text("Cancel")
-        }
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier.weight(1f).height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorMuted),
+            border = androidx.compose.foundation.BorderStroke(1.dp, ColorBorder)
+        ) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
+
         Button(
             onClick = {
-                val updated = if (isEditing) {
-                    response.copy(actions = response.actions.mapIndexed { i, action ->
-                        applyEdits(action, editedParams[i])
-                    })
-                } else response
+                val updated = if (isEditing) response.copy(
+                    actions = response.actions.mapIndexed { i, a -> applyEdits(a, editedParams[i]) }
+                ) else response
                 onExecute(updated)
             },
-            modifier = Modifier.weight(1f),
-            colors = if (lowConfidence) ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFD97706)
-            ) else ButtonDefaults.buttonColors()
+            modifier = Modifier.weight(1f).height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = if (lowConfidence) ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B))
+                     else ButtonDefaults.buttonColors(containerColor = ColorAccent)
         ) {
-            Text(if (lowConfidence) "Execute anyway" else "Execute")
+            Text(
+                if (lowConfidence) "Execute anyway" else "Execute",
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 }
 
-// ── Single-action card (larger display for solo results) ───────────────────
+// ── Single action card ─────────────────────────────────────────────────────
 
 @Composable
 private fun SingleActionCard(action: PlannedAction) {
-    val (accentColor, icon) = when (action.type) {
-        "create_calendar_event" -> Color(0xFF3B82F6) to "📅"
-        "create_contact"        -> Color(0xFF22C55E) to "👤"
-        "create_note"           -> Color(0xFFF97316) to "📝"
-        "log_expense"           -> Color(0xFFA855F7) to "💳"
-        else                    -> MaterialTheme.colorScheme.primary to "•"
-    }
-
+    val (color, icon) = actionMeta(action.type)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(accentColor.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(accentColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                .size(52.dp)
+                .background(color.copy(alpha = 0.14f), RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
-        ) {
-            Text(icon, fontSize = 22.sp)
-        }
+        ) { Text(icon, fontSize = 24.sp) }
         Text(
             text = actionLabel(action),
-            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            lineHeight = 20.sp,
+            lineHeight = 21.sp,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+// ── Multi-action compact row ───────────────────────────────────────────────
+
+@Composable
+private fun MultiActionRow(action: PlannedAction) {
+    val (color, icon) = actionMeta(action.type)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ColorSurfaceHigh, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(color.copy(alpha = 0.14f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(icon, fontSize = 16.sp) }
+        Text(actionLabel(action), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
     }
 }
 
@@ -280,24 +302,20 @@ private fun ConfidenceWarning(confidence: Float) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFFEF3C7), RoundedCornerShape(8.dp))
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .background(Color(0xFF451A03).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("⚠️", fontSize = 16.sp)
-        Column {
+        Text("⚠️", fontSize = 18.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = "Not fully confident (${(confidence * 100).toInt()}%)",
-                fontWeight = FontWeight.SemiBold,
+                "Low confidence — ${(confidence * 100).toInt()}%",
+                color = Color(0xFFFBBF24),
                 fontSize = 13.sp,
-                color = Color(0xFF92400E)
+                fontWeight = FontWeight.Bold
             )
-            Text(
-                text = "Review the details before saving.",
-                fontSize = 12.sp,
-                color = Color(0xFFB45309)
-            )
+            Text("Review the details carefully before saving.", color = Color(0xFFFCD34D), fontSize = 12.sp)
         }
     }
 }
@@ -306,14 +324,22 @@ private fun ConfidenceWarning(confidence: Float) {
 
 @Composable
 private fun EditableActionFields(action: PlannedAction, edits: MutableMap<String, String>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         editableFields(action.type).forEach { key ->
             OutlinedTextField(
                 value = edits[key] ?: "",
                 onValueChange = { edits[key] = it },
-                label = { Text(fieldLabel(key)) },
+                label = { Text(fieldLabel(key), color = ColorMuted) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = key != "body",
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = ColorAccentLight,
+                    unfocusedBorderColor = ColorBorder,
+                    focusedTextColor     = Color.White,
+                    unfocusedTextColor   = Color.White,
+                    cursorColor          = ColorAccentLight
+                ),
+                shape = RoundedCornerShape(12.dp),
                 keyboardOptions = when (key) {
                     "amount" -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     "phone"  -> KeyboardOptions(keyboardType = KeyboardType.Phone)
@@ -331,49 +357,40 @@ private fun ErrorContent(error: SheetState.Error, onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("😕", fontSize = 40.sp)
-        Text(error.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("😕", fontSize = 48.sp)
+        Text(error.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text(
-            text = error.hint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 18.sp
+            error.hint,
+            color = ColorMuted,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(4.dp))
-        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Dismiss")
-        }
-    }
-}
-
-// ── Action row (multi-action compact) ─────────────────────────────────────
-
-@Composable
-private fun ActionRow(action: PlannedAction) {
-    val icon = when (action.type) {
-        "create_calendar_event" -> "📅"
-        "create_contact"        -> "👤"
-        "create_note"           -> "📝"
-        "log_expense"           -> "💳"
-        else                    -> "•"
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(vertical = 2.dp)
-    ) {
-        Text(icon, fontSize = 16.sp)
-        Text(actionLabel(action), style = MaterialTheme.typography.bodyMedium)
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = ColorSurfaceHigh)
+        ) { Text("Dismiss", fontWeight = FontWeight.SemiBold) }
     }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-private fun editableFields(actionType: String): List<String> = when (actionType) {
+private fun actionMeta(type: String): Pair<Color, String> = when (type) {
+    "create_calendar_event" -> Color(0xFF3B82F6) to "📅"
+    "create_contact"        -> Color(0xFF22C55E) to "👤"
+    "create_note"           -> Color(0xFFF97316) to "📝"
+    "log_expense"           -> Color(0xFFA855F7) to "💳"
+    else                    -> Color(0xFF6B7280)  to "•"
+}
+
+private fun editableFields(t: String) = when (t) {
     "create_calendar_event" -> listOf("title", "dateTime", "location")
     "create_contact"        -> listOf("name", "phone", "email", "company")
     "create_note"           -> listOf("title", "body")
@@ -381,28 +398,25 @@ private fun editableFields(actionType: String): List<String> = when (actionType)
     else -> emptyList()
 }
 
-private fun fieldLabel(key: String): String = when (key) {
-    "dateTime" -> "Date & Time (ISO)"
-    "company"  -> "Company"
-    else       -> key.replaceFirstChar { it.uppercase() }
+private fun fieldLabel(key: String) = when (key) {
+    "dateTime" -> "Date & Time (ISO)"; "company" -> "Company"
+    else -> key.replaceFirstChar { it.uppercase() }
 }
 
 private fun applyEdits(action: PlannedAction, edits: Map<String, String>): PlannedAction {
     val updated = action.params.toMutableMap()
-    edits.forEach { (key, value) ->
-        if (value.isNotBlank()) {
-            updated[key] = when (action.params[key]) {
-                is Double -> value.toDoubleOrNull() ?: value
-                is Float  -> value.toFloatOrNull()  ?: value
-                is Int    -> value.toIntOrNull()    ?: value
-                else      -> value
-            }
+    edits.forEach { (k, v) ->
+        if (v.isNotBlank()) updated[k] = when (action.params[k]) {
+            is Double -> v.toDoubleOrNull() ?: v
+            is Float  -> v.toFloatOrNull()  ?: v
+            is Int    -> v.toIntOrNull()    ?: v
+            else      -> v
         }
     }
     return action.copy(params = updated)
 }
 
-private fun actionLabel(action: PlannedAction): String = when (action.type) {
+private fun actionLabel(action: PlannedAction) = when (action.type) {
     "create_calendar_event" -> buildString {
         append(action.params["title"] as? String ?: "Event")
         (action.params["dateTime"] as? String)?.let { append(" — $it") }
@@ -410,19 +424,15 @@ private fun actionLabel(action: PlannedAction): String = when (action.type) {
     }
     "create_contact" -> buildString {
         append(action.params["name"] as? String ?: "Contact")
-        val details = listOfNotNull(
-            action.params["phone"] as? String,
-            action.params["email"] as? String,
-            action.params["company"] as? String
-        )
-        if (details.isNotEmpty()) append(" (${details.joinToString(", ")})")
+        val d = listOfNotNull(action.params["phone"] as? String, action.params["email"] as? String)
+        if (d.isNotEmpty()) append(" (${d.joinToString(", ")})")
     }
     "create_note"    -> "Note: ${action.params["title"] as? String ?: "Untitled"}"
     "log_expense"    -> buildString {
-        val merchant = action.params["merchant"] as? String ?: "Expense"
-        val currency = action.params["currency"] as? String ?: "USD"
-        val amount   = action.params["amount"]?.toString() ?: ""
-        append("$merchant — $currency $amount")
+        append(action.params["merchant"] as? String ?: "Expense")
+        val amt = action.params["amount"]?.toString() ?: ""
+        val cur = action.params["currency"] as? String ?: "USD"
+        if (amt.isNotBlank()) append(" — $cur $amt")
     }
     else -> action.type.replace('_', ' ')
 }
