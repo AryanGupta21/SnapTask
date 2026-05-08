@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.snaptask.ui.HistoryScreen
+import com.snaptask.ui.OnboardingScreen
 import com.snaptask.ui.theme.SnapTaskTheme
 import java.io.File
 
@@ -41,7 +42,15 @@ private val PRIMARY = Color(0xFFFFFFFF)
 private val MUTED   = Color(0xFF9CA3AF)   // bumped up one stop — easier to read
 private val ACCENT  = Color(0xFF6366F1)
 
-private enum class Screen { Home, History }
+private enum class Screen { Onboarding, Home, History }
+
+private fun hasSeenOnboarding(context: android.content.Context) =
+    context.getSharedPreferences("snaptask_prefs", android.content.Context.MODE_PRIVATE)
+        .getBoolean("onboarding_done", false)
+
+private fun markOnboardingDone(context: android.content.Context) =
+    context.getSharedPreferences("snaptask_prefs", android.content.Context.MODE_PRIVATE)
+        .edit().putBoolean("onboarding_done", true).apply()
 
 class MainActivity : ComponentActivity() {
 
@@ -64,8 +73,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SnapTaskTheme {
-                var screen by remember { mutableStateOf(Screen.Home) }
+                val startScreen = if (hasSeenOnboarding(this)) Screen.Home else Screen.Onboarding
+                var screen by remember { mutableStateOf(startScreen) }
                 when (screen) {
+                    Screen.Onboarding -> OnboardingScreen(
+                        onGetStarted = {
+                            markOnboardingDone(this)
+                            screen = Screen.Home
+                        }
+                    )
                     Screen.Home -> HomeScreen(
                         context = this,
                         refreshKey = refreshKey,
