@@ -42,14 +42,6 @@ import java.io.File
 
 private enum class Screen { Onboarding, Home, History }
 
-private fun hasSeenOnboarding(context: Context) =
-    context.getSharedPreferences("snaptask_prefs", Context.MODE_PRIVATE)
-        .getBoolean("onboarding_done", false)
-
-private fun markOnboardingDone(context: Context) =
-    context.getSharedPreferences("snaptask_prefs", Context.MODE_PRIVATE)
-        .edit().putBoolean("onboarding_done", true).apply()
-
 class MainActivity : ComponentActivity() {
 
     private var pendingCameraUri: Uri? = null
@@ -70,11 +62,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SnapTaskTheme {
-                val startScreen = if (hasSeenOnboarding(this)) Screen.Home else Screen.Onboarding
-                var screen by remember { mutableStateOf(startScreen) }
+                var screen by remember { mutableStateOf(Screen.Onboarding) }
                 when (screen) {
                     Screen.Onboarding -> OnboardingScreen(onGetStarted = {
-                        markOnboardingDone(this); screen = Screen.Home
+                        screen = Screen.Home
                     })
                     Screen.Home -> HomeScreen(
                         context = this,
