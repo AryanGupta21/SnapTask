@@ -1,49 +1,63 @@
 # SnapTask — Samsung Prism Hackathon
 
-> Turn your camera into an action engine. Snap a photo. Watch it become a calendar event, contact, or note — entirely on-device.
+> Point your camera at anything with text. SnapTask reads it, understands it, and acts on it — creating calendar events, saving contacts, logging expenses, and writing notes automatically.
 
 ---
 
-## Problem Statement
+## Problem
 
-Every time you photograph a flyer, business card, whiteboard, or poster, your phone stores a JPEG and does nothing else. The action implied by that image — _add this event_, _save this contact_, _log this receipt_ — is left entirely to you.
+Every time you photograph a flyer, business card, receipt, or whiteboard, your phone stores a JPEG and does nothing. The action implied by that image — *add this event*, *save this contact*, *log this expense* — is left entirely to you.
 
-SnapTask closes that gap. It intercepts the photo through Android's share sheet, reads the text on-device with ML Kit, sends only that text to a local AI gateway (OpenClaw) for intent classification, and executes the right Samsung API — all without the image ever leaving your device.
+Manual re-entry is slow, error-prone, and completely unnecessary when the data is already in the photo.
 
 ---
 
-## How It Works
+## Solution
+
+SnapTask closes that gap with a three-step pipeline:
 
 ```
-[Samsung Camera] ──share──▶ [SnapTask App]
-                                   │
-                            ML Kit OCR (on-device)
-                                   │ rawText + entities
-                                   ▼
-                          [OpenClaw Gateway]  ◀── Ollama / llama3.2
-                          (Node.js, MacBook)        (local LLM)
-                                   │ PlannedAction JSON
-                                   ▼
-                          [SnapTask App] ──confirms──▶ [Samsung APIs]
-                                                  Calendar / Contacts / Notes
+[Camera / Gallery]
+        │
+        ▼
+[ML Kit OCR]  ──── rawText ────▶  [OpenClaw Server]
+  (on-device)                      Gemini 2.0 Flash
+                                   classifies intent +
+                                   extracts parameters
+        │
+        ▼
+[Confirmation Sheet]
+  Review & edit before executing
+        │
+        ▼
+[Samsung APIs]
+  Calendar · Contacts · Notes
 ```
 
-**Privacy guarantee:** The raw image never leaves the device. Only extracted text is sent — over the local Wi-Fi network, never to the internet.
+One photo. Zero re-typing. A single confirmation tap.
+
+**Privacy:** The raw image never leaves the device. Only extracted text is sent — over local Wi-Fi to your own server, not to any third-party cloud.
 
 ---
 
 ## Features
 
-| Feature | Description |
+| Feature | Status |
 |---|---|
-| Share Sheet Integration | Registers as a share target for `image/*` — works with Samsung Camera and any other app |
-| On-Device OCR | ML Kit Text Recognition v2 — no API key, no internet required |
-| Entity Extraction | ML Kit Entity Extraction identifies dates, phone numbers, emails, and addresses before sending to the LLM |
-| Local LLM Gateway | OpenClaw + Ollama (`llama3.2`) runs on MacBook Air M4 — no cloud inference |
-| Intent Classification | LLM chooses the right Samsung API action: calendar event, contact, Samsung Note, or expense log |
-| Confirmation Card | Jetpack Compose bottom sheet previews exactly what will be written before execution |
-| Samsung API Execution | Writes to Samsung Calendar, Contacts (ContentProvider), and Samsung Notes (Samsung Notes SDK) |
-| Privacy-First Architecture | Image data discarded after OCR; only `rawText` and `entities` cross the network boundary |
+| Camera + gallery launcher | ✅ |
+| On-device OCR (ML Kit Text Recognition) | ✅ |
+| Gemini 2.0 Flash intent classification | ✅ |
+| **Multi-action from one image** (e.g. business card → contact + calendar event) | ✅ |
+| Confirmation sheet with preview before executing | ✅ |
+| Confidence warning banner (< 60% confidence) | ✅ |
+| Editable action fields before confirming | ✅ |
+| Friendly typed error states (no text, network, server) | ✅ |
+| Create calendar event (Samsung / Google Calendar) | ✅ |
+| Save contact (ContactsContract) | ✅ |
+| Create note (Samsung Notes via share intent) | ✅ |
+| Log expense (Samsung Notes) | ✅ |
+| Action history screen with date grouping | ✅ |
+| Adaptive app icon | ✅ |
 
 ---
 
@@ -53,20 +67,19 @@ SnapTask closes that gap. It intercepts the photo through Android's share sheet,
 | Layer | Technology |
 |---|---|
 | Language | Kotlin |
-| UI | Jetpack Compose + Material3 (One UI tokens) |
+| UI | Jetpack Compose + Material 3 |
 | OCR | Google ML Kit Text Recognition v2 |
-| Entity Extraction | Google ML Kit Entity Extraction |
 | Networking | Retrofit 2 + OkHttp + Gson |
 | Concurrency | Kotlin Coroutines |
-| Samsung APIs | CalendarContract, ContactsContract, Samsung Notes SDK (`.aar`) |
+| Samsung APIs | CalendarContract, ContactsContract, Samsung Notes SDK |
 | Min SDK | API 26 (Android 8.0) |
 
-### OpenClaw Gateway (MacBook)
+### OpenClaw Server
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js |
-| LLM Backend | Ollama (`llama3.2`, ~2GB) |
-| Skill System | SKILL.md + `index.js` per integration |
+| Runtime | Node.js 18+ |
+| LLM | Gemini 2.0 Flash (`@google/genai`) |
+| Skill system | SKILL.md + `index.js` per integration |
 | Transport | HTTP/JSON on port 3000 |
 
 ---
@@ -75,119 +88,69 @@ SnapTask closes that gap. It intercepts the photo through Android's share sheet,
 
 ```
 SnapTask/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── docs/
-│   ├── architecture.md        # System design & data flow diagrams
-│   ├── privacy-flow.md        # Step-by-step privacy guarantee
-│   └── api-contracts.md       # Request / response JSON schemas
+├── snaptask-android/               # Kotlin Android app
+│   └── app/src/main/java/com/snaptask/
+│       ├── MainActivity.kt             # Home screen + camera/gallery launcher
+│       ├── ShareReceiverActivity.kt    # Share-sheet entry point + action executor
+│       ├── ActionHistory.kt            # SharedPrefs-based action log
+│       ├── network/
+│       │   ├── OpenClawClient.kt
+│       │   └── models/                 # SnapTaskRequest/Response, PlannedAction
+│       ├── ocr/
+│       │   └── MLKitOCRProcessor.kt
+│       ├── samsung/
+│       │   ├── CalendarManager.kt
+│       │   ├── ContactsManager.kt
+│       │   └── NotesManager.kt
+│       └── ui/
+│           ├── ConfirmationSheet.kt    # Bottom sheet: loading / ready / error
+│           ├── HistoryScreen.kt        # Date-grouped action history
+│           └── IntentBadge.kt
 │
-├── snaptask-android/          # Kotlin Android application
-│   ├── build.gradle
-│   ├── settings.gradle
-│   ├── gradle.properties
-│   └── app/
-│       ├── build.gradle
-│       └── src/main/
-│           ├── AndroidManifest.xml
-│           ├── java/com/snaptask/
-│           │   ├── ShareReceiverActivity.kt   ← entry point (share sheet)
-│           │   ├── ocr/
-│           │   │   ├── MLKitOCRProcessor.kt   ← ML Kit Text Recognition
-│           │   │   └── EntityExtractor.kt     ← ML Kit Entity Extraction
-│           │   ├── network/
-│           │   │   ├── OpenClawClient.kt      ← Retrofit client
-│           │   │   └── models/
-│           │   │       ├── SnapTaskRequest.kt
-│           │   │       ├── SnapTaskResponse.kt
-│           │   │       └── PlannedAction.kt
-│           │   ├── samsung/
-│           │   │   ├── CalendarManager.kt     ← CalendarContract
-│           │   │   ├── ContactsManager.kt     ← ContactsContract
-│           │   │   └── NotesManager.kt        ← Samsung Notes SDK
-│           │   └── ui/
-│           │       ├── ConfirmationSheet.kt   ← Compose bottom sheet
-│           │       ├── IntentBadge.kt         ← colored pill chip
-│           │       └── theme/
-│           │           └── Theme.kt
-│           └── res/
-│               ├── values/strings.xml
-│               └── drawable/
+├── openclaw-server/                # Node.js gateway (run on your Mac)
+│   ├── server.js
+│   ├── package.json
+│   └── .env.example
 │
-└── openclaw-skills/           # OpenClaw skill definitions
-    ├── samsung-calendar/      # Deploy to ~/.openclaw/workspace/skills/
-    │   ├── SKILL.md
-    │   └── index.js
-    ├── samsung-notes/
-    │   ├── SKILL.md
-    │   └── index.js
+└── openclaw-skills/                # One folder per skill
+    ├── samsung-calendar/
     ├── samsung-contacts/
-    │   ├── SKILL.md
-    │   └── index.js
+    ├── samsung-notes/
     └── expense-logger/
-        ├── SKILL.md
-        └── index.js
 ```
 
 ---
 
-## Setup & Installation
+## Setup
 
 ### Prerequisites
 
-| Tool | Version | Install |
-|---|---|---|
-| Android Studio | Hedgehog+ | [Download](https://developer.android.com/studio) |
-| Kotlin | 1.9+ | Bundled with Android Studio |
-| Node.js | 18+ | `brew install node` |
-| Ollama | Latest | `brew install ollama` |
-| Samsung Notes SDK | Latest | Samsung Developers Portal |
+| Tool | Version |
+|---|---|
+| Android Studio | Hedgehog or newer |
+| Node.js | 18+ |
+| A Gemini API key | [Get one free at Google AI Studio](https://aistudio.google.com/app/apikey) |
 
 ---
 
-### Step 1 — MacBook: Set up Ollama
+### Step 1 — Start the OpenClaw server (Mac)
 
 ```bash
-brew install ollama
-ollama pull llama3.2        # ~2GB download, runs fast on M4
-ollama serve                # starts at localhost:11434
-```
-
----
-
-### Step 2 — MacBook: Set up OpenClaw
-
-```bash
-git clone https://github.com/openclaw/openclaw
-cd openclaw
+cd openclaw-server
 npm install
-npm run dev                 # gateway starts on port 3000
-```
 
-Configure `~/.openclaw/config.json`:
+# Create your .env from the example
+cp .env.example .env
+# Edit .env and paste your Gemini API key:
+# GEMINI_API_KEY=your_key_here
 
-```json
-{
-  "agent": {
-    "model": "ollama/llama3.2",
-    "baseURL": "http://localhost:11434"
-  },
-  "server": {
-    "port": 3000
-  }
-}
-```
-
-Deploy the skills from this repo:
-
-```bash
-cp -r openclaw-skills/* ~/.openclaw/workspace/skills/
+node server.js
+# → OpenClaw Gateway listening on http://localhost:3000
 ```
 
 ---
 
-### Step 3 — Find your MacBook's local IP
+### Step 2 — Find your Mac's local IP
 
 ```bash
 ifconfig | grep "inet " | grep -v 127.0.0.1
@@ -196,102 +159,83 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 
 ---
 
-### Step 4 — Android App
+### Step 3 — Configure the Android app
 
-1. Open `snaptask-android/` in Android Studio.
-2. In `OpenClawClient.kt`, set `BASE_URL` to `http://192.168.x.x:3000/` (your IP from Step 3).
-3. Place `samsung-notes-sdk.aar` from the Samsung Developers Portal into `app/libs/`.
-4. Connect a Samsung Galaxy device in Developer Mode.
-5. Run the `app` configuration in Android Studio.
+Open `snaptask-android/app/src/main/java/com/snaptask/network/OpenClawClient.kt` and set:
+
+```kotlin
+private const val BASE_URL = "http://192.168.x.x:3000/"  // ← your IP
+```
+
+Make sure your phone and Mac are on the **same Wi-Fi network**.
+
+---
+
+### Step 4 — Build and install
+
+1. Place `samsung-notes-sdk.aar` (from the Samsung Developers Portal) into `snaptask-android/app/libs/`.
+2. Connect your Samsung Galaxy device in Developer Mode.
+3. Open `snaptask-android/` in Android Studio and run the `app` configuration.
 
 ---
 
 ## Usage
 
-1. Open **Samsung Camera** and photograph any document, business card, flyer, or whiteboard.
-2. Tap **Share** in the camera preview or Gallery.
-3. Select **SnapTask** from the share sheet.
-4. SnapTask reads the text on-device and asks OpenClaw what to do.
-5. A **confirmation card** slides up showing the detected intent and planned action.
-6. Tap **Execute** to write the data, or **Cancel** to dismiss.
+### Snapping from the app
+1. Open **SnapTask**.
+2. Tap the large **Snap it** button to open the camera, or **Use a photo instead** to pick from gallery.
+3. Capture or select an image with readable text.
+4. The confirmation sheet slides up — review the detected action(s).
+5. Optionally tap **Edit details** to adjust any fields.
+6. Tap **Execute** to save, or **Cancel** to dismiss.
 
-### Supported Intents
+### Snapping from any app
+1. Take a photo in Samsung Camera (or any app).
+2. Tap **Share** → select **SnapTask**.
+3. Same confirmation flow as above.
 
-| Photo Content | Action |
+### Viewing history
+- The home screen footer shows **"N actions saved →"** once you've executed at least one action.
+- Tap it to open the **History** screen — actions grouped by Today / Yesterday / This Week / Earlier.
+- Tap **Clear** to wipe the history.
+
+---
+
+## Supported Actions
+
+| Image content | Actions triggered |
 |---|---|
-| Event poster / flyer | Creates Samsung Calendar event with date, time, location |
-| Business card | Saves contact to Samsung Contacts with name, phone, email, company |
-| Whiteboard / task list | Creates Samsung Note with formatted checklist |
-| Receipt | Logs expense with amount, merchant, date to Samsung Notes |
+| Business card | Save contact + optionally create a follow-up calendar event |
+| Event flyer / poster | Create calendar event (title, date, time, location) |
+| Receipt | Log expense (merchant, amount, currency, date) |
+| Whiteboard / notes | Create note with title and body |
+| Mixed content | Multiple actions from a single image |
 
 ---
 
-## Architecture
+## How Multi-Action Works
 
-See [`docs/architecture.md`](docs/architecture.md) for the full system design.
+The Gemini prompt explicitly instructs the model to return **all applicable actions** for the image, not just one. A single business card can produce:
 
-**Core architectural rules (do not violate):**
+```json
+{
+  "actions": [
+    { "skill": "samsung-contacts", "params": { "name": "Jane Smith", "phone": "+1 415 000 0000" } },
+    { "skill": "samsung-calendar", "params": { "title": "Call with Jane", "date": "2026-05-15", "time": "14:00" } }
+  ]
+}
+```
 
-- The **Android app never makes LLM decisions** — it does OCR and executes Samsung APIs only.
-- **OpenClaw skills never call Samsung APIs directly** — they return structured `PlannedAction` JSON.
-- **Images never reach OpenClaw** — only `rawText` and `entities` cross the network boundary.
-
----
-
-## Implementation Phases
-
-### Phase 1 — Core Setup & Architecture
-- Ollama + llama3.2 running locally on MacBook
-- OpenClaw gateway cloned, configured, running on port 3000
-- `samsung-calendar` skill deployed and returning valid `PlannedAction` JSON
-- Android project scaffolded with share-sheet `intent-filter` in `AndroidManifest.xml`
-- `MLKitOCRProcessor` returning extracted text from a static test image
-
-### Phase 2 — Feature Development
-- `EntityExtractor` enriching OCR output with ML Kit structured entities
-- `OpenClawClient` (Retrofit) wired and receiving `SnapTaskResponse`
-- `ConfirmationSheet` Compose UI rendering intent badge + planned actions
-- `CalendarManager` writing events via `CalendarContract`
-- Full end-to-end: share → OCR → OpenClaw → confirmation card → calendar write
-
-### Phase 3 — Integrations & Optimization
-- `ContactsManager` via `ContactsContract`
-- `NotesManager` via Samsung Notes SDK
-- `expense-logger` skill + execution handler
-- Multi-skill routing: OpenClaw classifies between event / contact / note / expense
-- Optional: follow-up text field in confirmation sheet for corrections
-
-### Phase 4 — Testing & Deployment
-- Graceful error states: OpenClaw unreachable, OCR failure, permission denied
-- Loading state UI ("Reading image...")
-- Runtime permission requests for Calendar, Contacts
-- Demo rehearsal: photograph PRISM poster 10× — must succeed every time
-
----
-
-## Future Improvements
-
-- Multi-action recognition (one photo → calendar event + contact save)
-- Offline intent classifier fallback when Ollama is unavailable
-- Samsung DeX support with expanded confirmation UI
-- Bixby Routine trigger on camera roll additions
-- Additional skills: Wi-Fi QR codes, medication schedules, shipping labels
+Both actions appear in the confirmation sheet and execute together on a single tap.
 
 ---
 
 ## Privacy
 
-1. Photo stays on device as a local JPEG.
-2. ML Kit reads pixels from the URI — returns text only, image data is discarded.
-3. Only `rawText` + ML Kit `entities` are sent over local Wi-Fi to OpenClaw — never to the internet.
-4. Ollama processes text on your MacBook — no cloud inference.
-5. OpenClaw returns a `PlannedAction` JSON object — no data is persisted.
-6. Android app writes directly to Samsung Calendar / Contacts / Notes — fully local.
+1. Photo stays on device as a local file.
+2. ML Kit reads pixels from the URI — returns text only, the image is never forwarded.
+3. Only `rawText` is sent over local Wi-Fi to your OpenClaw server — never to any third-party.
+4. Gemini processes the text and returns structured JSON — no image data involved.
+5. The Android app writes directly to Calendar / Contacts / Notes — fully local.
 
-**Nothing leaves the local network. The raw image never touches a server.**
-
----
-
-## License
-
-See [LICENSE](LICENSE).
+**The raw image never leaves your device.**
