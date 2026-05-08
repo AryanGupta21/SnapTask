@@ -17,12 +17,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.snaptask.ActionHistory
+import com.snaptask.ui.theme.*
 import java.util.Calendar
-
-private val BG      = Color(0xFF0D0D14)
-private val SURFACE = Color(0xFF13131C)
-private val MUTED   = Color(0xFF9CA3AF)
-private val DIVIDER = Color(0xFF1E1E2A)
 
 private data class Section(val header: String, val blips: List<ActionHistory.Blip>)
 
@@ -38,7 +34,7 @@ fun HistoryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BG)
+            .background(ColorBg)
     ) {
         // Top bar
         Row(
@@ -82,7 +78,7 @@ fun HistoryScreen(
             }
         }
 
-        Divider(color = DIVIDER, thickness = 1.dp)
+        Divider(color = ColorBorder, thickness = 1.dp)
 
         if (blips.isEmpty()) {
             EmptyState()
@@ -95,7 +91,7 @@ fun HistoryScreen(
                     item {
                         Text(
                             text = section.header,
-                            color = MUTED,
+                            color = ColorMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
@@ -133,7 +129,7 @@ private fun EmptyState() {
             )
             Text(
                 text = "Actions you execute will appear here — calendar events, contacts, notes, and expenses.",
-                color = MUTED,
+                color = ColorMuted,
                 fontSize = 14.sp,
                 lineHeight = 21.sp,
                 textAlign = TextAlign.Center
@@ -155,7 +151,7 @@ private fun HistoryRow(blip: ActionHistory.Blip) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(SURFACE, RoundedCornerShape(12.dp)),
+            .background(ColorSurface, RoundedCornerShape(12.dp)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Left accent bar
@@ -209,7 +205,7 @@ private fun HistoryRow(blip: ActionHistory.Blip) {
         ) {
             Text(
                 text = relativeTime(blip.timestamp),
-                color = MUTED,
+                color = ColorMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
