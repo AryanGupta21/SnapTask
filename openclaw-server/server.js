@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
+const Groq = require('groq-sdk');
 
 const app = express();
 app.use(express.json());
@@ -10,14 +10,14 @@ app.use(express.json());
 const SKILLS_DIR = path.join(__dirname, '..', 'openclaw-skills');
 const PORT = 3000;
 
-if (!process.env.GEMINI_API_KEY) {
-  console.error('ERROR: GEMINI_API_KEY is not set. Create a .env file — see .env.example.');
+if (!process.env.GROQ_API_KEY) {
+  console.error('ERROR: GROQ_API_KEY is not set. Create a .env file — see .env.example.');
   process.exit(1);
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'llama-3.3-70b-versatile';
 
 function loadSkills() {
   const skills = {};
@@ -73,7 +73,8 @@ Rules:
 - "actions" must be an array (can have 1 or more items).
 - Only include a skill if the text clearly provides the required parameters for it.
 - If nothing matches, return "actions": [].
-- Do NOT invent data that isn't in the text.`;
+- Do NOT invent data that isn't in the text.
+- Respond with ONLY the JSON object, no markdown, no explanation.`;
 }
 
 app.post('/process', async (req, res) => {
@@ -86,15 +87,20 @@ app.post('/process', async (req, res) => {
 
   let llmResult;
   try {
-    const result = await ai.models.generateContent({
+    const completion = await groq.chat.completions.create({
       model: MODEL,
-      contents: buildPrompt(rawText, entities),
-      config: { responseMimeType: 'application/json' },
+      messages: [
+        { role: 'system', content: 'You are a JSON-only response bot. Always respond with valid JSON and nothing else.' },
+        { role: 'user', content: buildPrompt(rawText, entities) },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
     });
-    console.log('[Gemini raw]', result.text);
-    llmResult = JSON.parse(result.text);
+    const text = completion.choices[0].message.content;
+    console.log('[Groq raw]', text);
+    llmResult = JSON.parse(text);
   } catch (err) {
-    console.error('[Gemini error]', err.message);
+    console.error('[Groq error]', err.message);
     return res.status(502).json({ error: `LLM error: ${err.message}` });
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "openclaw-server",
   "version": "1.0.0",
-  "description": "OpenClaw Gateway — bridges SnapTask Android app to Gemini API",
+  "description": "OpenClaw Gateway — bridges SnapTask Android app to Groq LLM API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "@google/genai": "^1.0.0",
+    "groq-sdk": "^0.9.0",
     "dotenv": "^16.4.5"
   }
 }
